@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";
-import { wikiSlug } from "../../shared/wiki";
+import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from "../../shared/wiki";
 import { useOutsidePress } from "../lib/hooks";
 import { articleLink } from "../lib/links";
 import { rememberSearch } from "../lib/preferences";
@@ -11,11 +11,14 @@ import { SearchResultRow } from "./SearchResults";
 /** The large search field on the home and search pages, with live suggestions. */
 export function SearchBox({
   wiki,
+  onWikiChange,
   initialQuery = "",
   autoFocus = false,
-  placeholder = "Search any topic, or paste a Wikipedia link",
+  placeholder = "Search any topic or paste a link",
 }: {
   wiki: string;
+  /** When given, a compact language picker sits inside the field. */
+  onWikiChange?: (wiki: string) => void;
   initialQuery?: string;
   autoFocus?: boolean;
   placeholder?: string;
@@ -27,6 +30,7 @@ export function SearchBox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const { options, isFetching } = useArticleSearch(query, wiki);
+  const lang = wikiLanguage(wiki);
 
   useOutsidePress([boxRef], () => setOpen(false), open);
 
@@ -74,7 +78,29 @@ export function SearchBox({
           submit();
         }}
       >
-        {isFetching ? <span className="spinner" aria-hidden="true" /> : <Icon name="search" size={21} />}
+        {onWikiChange && (
+          <label className="search-lang" title="Search language">
+            <span aria-hidden="true">{lang.toUpperCase()}</span>
+            <Icon name="chevronDown" size={13} strokeWidth={2} />
+            <select
+              value={lang}
+              aria-label="Search language"
+              onChange={(event) => onWikiChange(normalizeWikiHost(event.target.value) ?? wiki)}
+            >
+              {!FEATURED_LANGUAGES.some((language) => language.code === lang) && <option value={lang}>{wiki}</option>}
+              {FEATURED_LANGUAGES.map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <span className="search-icon" aria-hidden="true">
+          {isFetching ? <span className="spinner" /> : <Icon name="search" size={19} />}
+        </span>
+
         <input
           value={query}
           onChange={(event) => {
@@ -96,9 +122,11 @@ export function SearchBox({
           autoFocus={autoFocus}
           enterKeyHint="search"
         />
-        <kbd title="Open quick search anywhere">{modKey} K</kbd>
-        <button type="submit" className="btn btn-primary btn-sm">
-          Read
+
+        {!query && <kbd title="Open quick search from anywhere">{modKey} K</kbd>}
+
+        <button type="submit" className="search-submit" aria-label="Search">
+          <Icon name="arrowRight" size={20} strokeWidth={2} />
         </button>
       </form>
 

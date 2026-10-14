@@ -558,7 +558,8 @@ export function ArticleView({ article }: { article: WikiArticle }) {
       </header>
 
       {article.image && (
-        <figure className="hero-figure">
+        // Portraits and tall images are shown whole; cropping them to a wide banner cuts off faces.
+        <figure className={`hero-figure ${article.image.height > article.image.width * 0.9 ? "is-tall" : ""}`}>
           <button type="button" onClick={() => setLightbox(-1)} aria-label="View image full screen">
             <img src={article.image.src} alt="" width={article.image.width} height={article.image.height} fetchPriority="high" />
           </button>

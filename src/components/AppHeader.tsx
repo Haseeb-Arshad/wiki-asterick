@@ -14,42 +14,49 @@ const THEMES: { value: ThemePreference; label: string; icon: IconName }[] = [
   { value: "dark", label: "Dark", icon: "moon" },
 ];
 
+const SECTIONS = [
+  { to: "/", label: "Discover", isActive: (path: string) => path === "/" || path === "/search" },
+  { to: "/library", label: "Library", isActive: (path: string) => path.startsWith("/library") },
+] as const;
+
+/**
+ * Floating navigation: a brand pill and section switcher on the left, round
+ * icon buttons on the right. In the reader it slides away while scrolling down.
+ */
 export function AppHeader() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isReader = pathname.startsWith("/read/");
   const hidden = useHideOnScroll(160);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const isReader = pathname.startsWith("/read/");
 
   return (
-    <header className={`app-header ${scrolled ? "is-scrolled" : ""} ${isReader && hidden ? "is-hidden" : ""}`}>
+    <header className={`app-header ${isReader && hidden ? "is-hidden" : ""}`}>
       <div className="header-inner">
-        <Link to="/" className="brand" aria-label="WikiAsterisk home">
-          <AsteriskMark size={22} />
-          <span>WikiAsterisk</span>
-        </Link>
-
-        <button type="button" className="header-search" onClick={() => setPaletteOpen(true)} aria-label="Search articles">
-          <Icon name="search" size={17} />
-          <span>Search articles…</span>
-          <kbd>{modKey} K</kbd>
-        </button>
-
-        <div className="header-spacer" />
-
-        <nav className="header-nav" aria-label="Main">
-          <Link to="/library" className="nav-link" activeProps={{ className: "nav-link active" }}>
-            <Icon name="library" size={18} />
-            <span className="nav-label">Library</span>
+        <div className="nav-cluster">
+          <Link to="/" className="nav-pill brand-pill" aria-label="WikiAsterisk home">
+            <AsteriskMark size={18} />
+            <span className="brand-word">WikiAsterisk</span>
           </Link>
+          <nav className="nav-pill segmented-nav" aria-label="Main">
+            {SECTIONS.map((section) => (
+              <Link key={section.to} to={section.to} className="seg-link" aria-current={section.isActive(pathname) ? "page" : undefined}>
+                {section.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div className="nav-cluster">
+          <button
+            type="button"
+            className="nav-circle"
+            onClick={() => setPaletteOpen(true)}
+            aria-label={`Search articles (${modKey}+K)`}
+            data-hint={`Search · ${modKey} K`}
+          >
+            <Icon name="search" size={18} />
+          </button>
           <AccountMenu />
-        </nav>
+        </div>
       </div>
     </header>
   );
@@ -86,7 +93,7 @@ function AccountMenu() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  if (isLoading) return <span className="avatar" aria-hidden="true" style={{ opacity: 0.4 }} />;
+  if (isLoading) return <span className="nav-circle" aria-hidden="true" />;
 
   const initials = user?.name
     .split(/\s+/)
@@ -97,22 +104,16 @@ function AccountMenu() {
 
   return (
     <div className="menu-anchor" ref={anchorRef}>
-      {user ? (
-        <button
-          type="button"
-          className="avatar-btn"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={`Account menu for ${user.name}`}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span className="avatar">{initials}</span>
-        </button>
-      ) : (
-        <button type="button" className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label="Menu" onClick={() => setOpen((value) => !value)}>
-          <Icon name="user" size={20} />
-        </button>
-      )}
+      <button
+        type="button"
+        className={`nav-circle ${user ? "is-avatar" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={user ? `Account menu for ${user.name}` : "Menu"}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {user ? initials : <Icon name="user" size={18} />}
+      </button>
 
       {open && (
         <div className="menu" role="menu">

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { normalizeWikiHost } from "../../shared/wiki";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { normalizeWikiHost, wikiSlug } from "../../shared/wiki";
 import { articleLink } from "../lib/links";
 import { wikiStore } from "../lib/preferences";
 import { searchQuery } from "../lib/queries";
@@ -12,6 +12,7 @@ export function SearchPage({ q, wiki: wikiParam }: { q: string; wiki?: string })
   const preferred = wikiStore.use();
   const wiki = (wikiParam && normalizeWikiHost(wikiParam)) || preferred;
   const results = useQuery(searchQuery(wiki, q, "full"));
+  const navigate = useNavigate();
 
   return (
     <div className="container" style={{ maxWidth: 780 }}>
@@ -19,7 +20,15 @@ export function SearchPage({ q, wiki: wikiParam }: { q: string; wiki?: string })
         <h1 className="page-title">{q ? `Results for “${q}”` : "Search"}</h1>
         <p className="page-sub">Full-text search across {wiki}.</p>
         <div className="search-page-field">
-          <SearchBox key={`${wiki}:${q}`} wiki={wiki} initialQuery={q} />
+          <SearchBox
+            key={`${wiki}:${q}`}
+            wiki={wiki}
+            initialQuery={q}
+            onWikiChange={(next) => {
+              wikiStore.set(next);
+              navigate({ to: "/search", search: { q, wiki: wikiSlug(next) }, replace: true });
+            }}
+          />
         </div>
       </header>
 

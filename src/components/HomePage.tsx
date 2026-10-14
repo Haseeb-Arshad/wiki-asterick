@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ArticleSummary, MediaItem, WikiFeed } from "../../shared/types";
-import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage } from "../../shared/wiki";
+import { FEATURED_LANGUAGES, wikiLanguage } from "../../shared/wiki";
 import { useSession } from "../lib/auth";
 import { formatCompact, formatDate, formatRelative } from "../lib/format";
 import { useLibrary } from "../lib/library";
@@ -61,39 +61,23 @@ export function HomePage() {
             when you sign in.
           </p>
           <div className="rise" style={{ "--i": 3 } as React.CSSProperties}>
-            <SearchBox wiki={wiki} />
-            <div className="hero-actions">
-              <label className="visually-hidden" htmlFor="home-language">
-                Language
-              </label>
-              <select
-                id="home-language"
-                className="select"
-                value={lang}
-                onChange={(event) => wikiStore.set(normalizeWikiHost(event.target.value) ?? wiki)}
-              >
-                {!FEATURED_LANGUAGES.some((language) => language.code === lang) && <option value={lang}>{wiki}</option>}
-                {FEATURED_LANGUAGES.map((language) => (
-                  <option key={language.code} value={language.code}>
-                    {language.name}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="chip" onClick={surprise} disabled={randomLoading}>
+            <SearchBox wiki={wiki} onWikiChange={(next) => wikiStore.set(next)} />
+            <div className="hero-try">
+              {STARTERS[lang] && (
+                <>
+                  <span className="hero-try-label">Try</span>
+                  {STARTERS[lang].map((title) => (
+                    <Link key={title} {...articleLink(wiki, title)} className="chip">
+                      {title}
+                    </Link>
+                  ))}
+                </>
+              )}
+              <button type="button" className="chip chip-quiet" onClick={surprise} disabled={randomLoading}>
                 {randomLoading ? <span className="spinner" aria-hidden="true" /> : <Icon name="shuffle" size={15} />}
                 Surprise me
               </button>
             </div>
-            {STARTERS[lang] && (
-              <div className="hero-try">
-                <span>Try</span>
-                {STARTERS[lang].map((title) => (
-                  <Link key={title} {...articleLink(wiki, title)} className="chip">
-                    {title}
-                  </Link>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </section>
