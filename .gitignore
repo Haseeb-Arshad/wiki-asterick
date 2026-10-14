@@ -25,3 +25,7 @@ nul
 *.njsproj
 *.sln
 *.sw?
+
+# Local data (SQLite database, dev JWT secret) and environment
+data
+.env

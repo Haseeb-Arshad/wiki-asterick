@@ -1,41 +1,23 @@
-import express from "express";
-import cors from "cors";
-import { parseWikipediaArticle } from "./wikipedia.js";
+import { createApp } from "./app.js";
+import { pruneExpiredRefreshTokens } from "./auth/tokens.js";
+import { config } from "./config.js";
+import { db } from "./db.js";
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+pruneExpiredRefreshTokens();
+setInterval(pruneExpiredRefreshTokens, 6 * 60 * 60 * 1000).unref();
 
-app.use(cors());
-app.use(express.json());
-
-app.get("/api/article", async (req, res) => {
-  try {
-    const url = req.query.url as string;
-    if (!url) {
-      res.status(400).json({ error: "Missing url parameter" });
-      return;
-    }
-
-    const wikipediaUrlPattern = /^https?:\/\/([a-z]+\.)?wikipedia\.org\/wiki\/(.+)$/i;
-    const match = url.match(wikipediaUrlPattern);
-    if (!match) {
-      res.status(400).json({ error: "Invalid Wikipedia URL" });
-      return;
-    }
-
-    const article = await parseWikipediaArticle(url);
-    res.json(article);
-  } catch (error: unknown) {
-    console.error("Error fetching article:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: message });
-  }
+const server = createApp().listen(config.port, () => {
+  const mode = config.isProduction ? "production" : "development";
+  console.log(`[server] WikiAsterisk API (${mode}) listening on http://localhost:${config.port}`);
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+function shutdown() {
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 3000).unref();
+}
 
-app.listen(PORT, () => {
-  console.log(`[server] WikiAsterisk server running on http://localhost:${PORT}`);
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
