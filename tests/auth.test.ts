@@ -216,6 +216,29 @@ describe("library API", () => {
     assert.equal(snapshot.highlights.length, 1);
   });
 
+  test("saves web pages with their address and rejects mismatched hosts", async () => {
+    const saved = await client.send("PUT", "/api/library/bookmarks", {
+      wiki: "web:blog.example.com",
+      title: "Every Supply Chain",
+      description: "",
+      thumbnail: "https://cdn.example.com/cover.jpg",
+      url: "https://blog.example.com/p/supply",
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.url, "https://blog.example.com/p/supply");
+    assert.equal(saved.body.thumbnail, "https://cdn.example.com/cover.jpg");
+
+    const spoofed = await client.send("PUT", "/api/library/bookmarks", {
+      wiki: "web:blog.example.com",
+      title: "Spoof",
+      url: "https://evil.example.net/p/x",
+    });
+    assert.equal(spoofed.status, 400);
+
+    // Clean up so later counts stay simple.
+    await client.send("DELETE", `/api/library/bookmarks?${new URLSearchParams({ wiki: "web:blog.example.com", title: "Every Supply Chain" })}`);
+  });
+
   test("keeps users' data apart", async () => {
     const stranger = new Client();
     await stranger.send("POST", "/api/auth/register", { name: "S", email: "s@example.com", password: "stranger pass" });

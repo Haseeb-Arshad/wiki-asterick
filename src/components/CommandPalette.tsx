@@ -4,6 +4,7 @@ import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from ".
 import { useSession } from "../lib/auth";
 import { useLibrary } from "../lib/library";
 import { articleLink } from "../lib/links";
+import { openAssistant } from "../lib/assistant";
 import { recentSearchStore, rememberSearch, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
 import { setPaletteOpen, useArticleSearch, usePaletteOpen, type SearchOption } from "../lib/search";
@@ -61,7 +62,7 @@ function Palette({ onClose }: { onClose: () => void }) {
     const recentItems: SearchOption[] = [];
     const candidates = [
       ...snapshot.history.slice(0, 4),
-      ...recent.map((item) => ({ ...item, description: "", thumbnail: null })),
+      ...recent.map((item) => ({ ...item, description: "", thumbnail: null, url: null })),
     ];
     for (const item of candidates) {
       const key = `${item.wiki}:${item.title}`;
@@ -74,6 +75,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         title: item.title,
         description: item.description,
         thumbnail: item.thumbnail,
+        url: item.url ?? undefined,
       });
     }
 
@@ -100,6 +102,18 @@ function Palette({ onClose }: { onClose: () => void }) {
     }
     if (option.key === "library") {
       navigate({ to: "/library" });
+      return;
+    }
+    if (option.kind === "ask") {
+      openAssistant({ question: option.title });
+      return;
+    }
+    if (option.kind === "link" && option.url) {
+      navigate({ to: "/web", search: { url: option.url } });
+      return;
+    }
+    if (option.kind === "recent" && option.url) {
+      navigate({ to: "/web", search: { url: option.url } });
       return;
     }
     if (option.kind === "fulltext") {
@@ -145,7 +159,7 @@ function Palette({ onClose }: { onClose: () => void }) {
               setActive(0);
             }}
             onKeyDown={onKeyDown}
-            placeholder="Search any article, or paste a Wikipedia link"
+            placeholder="Search, paste any article link, or ask a question"
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}

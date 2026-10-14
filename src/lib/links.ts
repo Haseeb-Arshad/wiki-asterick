@@ -17,3 +17,15 @@ export function wikiFromParam(param: string): string | null {
 export function absoluteArticleUrl(wiki: string, title: string): string {
   return `${window.location.origin}/read/${wikiSlug(wiki)}/${encodeURIComponent(titleToPath(title))}`;
 }
+
+/** Link to any saved item: wiki articles go to the wiki reader, web pages to /web. */
+export function refLink(ref: { wiki: string; title: string; url?: string | null }, hash?: string) {
+  if (ref.wiki.startsWith("web:") && ref.url) {
+    return { to: "/web" as const, search: { url: ref.url }, ...(hash ? { hash } : {}) };
+  }
+  return articleLink(ref.wiki, ref.title, hash);
+}
+
+export function isWebWiki(wiki: string): boolean {
+  return wiki.startsWith("web:");
+}

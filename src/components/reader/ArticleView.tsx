@@ -8,7 +8,8 @@ import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
 import { useHotkeys } from "../../lib/hooks";
 import { highlightsFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
-import { articleQuery, relatedQuery } from "../../lib/queries";
+import { aiStatusQuery, openAssistant, setAssistantContext } from "../../lib/assistant";
+import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
 import { caretAt, clearPaintedHighlights, describeRange, findQuote, paintHighlights } from "../../lib/text-anchor";
 import { toast } from "../../lib/toast";
 import { AsteriskMark } from "../AsteriskIcon";
@@ -54,7 +55,10 @@ async function copyText(text: string, message: string) {
   }
 }
 
-export function ArticleView({ article }: { article: WikiArticle }) {
+export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?: string }) {
+  const isWeb = article.kind === "web";
+  const aiStatus = useQuery(aiStatusQuery);
+  const aiEnabled = aiStatus.data?.enabled === true;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hash = useLocation({ select: (location) => location.hash });
@@ -97,18 +101,26 @@ export function ArticleView({ article }: { article: WikiArticle }) {
       wiki: article.wiki,
       title: article.title,
       description: article.description || article.extract.slice(0, 160),
-      thumbnail: article.image ? resizeThumb(article.image.src, 330, article.image.width) : null,
+      thumbnail: article.image ? (isWeb ? article.image.src : resizeThumb(article.image.src, 330, article.image.width)) : null,
+      url: webUrl ?? null,
     }),
-    [article]
+    [article, isWeb, webUrl]
   );
 
   const saved = library.isBookmarked(article.wiki, article.title);
-  const project = PROJECT_NAMES[wikiProject(article.wiki)] ?? "Wiki";
-  const lang = wikiLanguage(article.wiki);
+  const project = isWeb ? (article.site ?? article.wiki.slice(4)) : (PROJECT_NAMES[wikiProject(article.wiki)] ?? "Wiki");
+  const lang = isWeb ? article.lang : wikiLanguage(article.wiki);
+  const shareUrl = webUrl ? `${window.location.origin}/web?url=${encodeURIComponent(webUrl)}` : absoluteArticleUrl(article.wiki, article.title);
   const readAloud = useReadAloud(bodyRef, article.lang);
   const videoCount = article.media.filter((item) => item.type === "video").length;
 
   const closePanel = useCallback(() => setPanel(null), []);
+
+  // ---- the AI assistant answers about this article ---------------------------------
+  useEffect(() => {
+    setAssistantContext(webUrl ? { kind: "web", url: webUrl, title: article.title } : { kind: "wiki", wiki: article.wiki, title: article.title });
+    return () => setAssistantContext(null);
+  }, [article.wiki, article.title, webUrl]);
 
   // ---- page title ---------------------------------------------------------------
   useEffect(() => {
@@ -283,7 +295,7 @@ export function ArticleView({ article }: { article: WikiArticle }) {
     };
   }, []);
 
-  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${absoluteArticleUrl(article.wiki, article.title)})`;
+  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${shareUrl})`;
 
   function createHighlight(color: HighlightColor, withNote = false) {
     const range = selection;
@@ -297,6 +309,7 @@ export function ArticleView({ article }: { article: WikiArticle }) {
 
     const highlight = library.addHighlight({
       wiki: article.wiki,
+      url: webUrl ?? null,
       articleTitle: article.title,
       sectionId: section === body ? "" : section.id,
       sectionTitle: sectionTitles.get(section.id) ?? "",
@@ -415,7 +428,7 @@ export function ArticleView({ article }: { article: WikiArticle }) {
   }
 
   async function shareArticle() {
-    const url = absoluteArticleUrl(article.wiki, article.title);
+    const url = shareUrl;
     if (navigator.share && coarsePointer()) {
       await navigator.share({ title: article.title, text: article.description, url }).catch(() => undefined);
     } else {
@@ -467,9 +480,9 @@ export function ArticleView({ article }: { article: WikiArticle }) {
 
       <header className="article-header column">
         <div className="article-kicker">
-          <Icon name="globe" size={15} />
+          <Icon name={isWeb ? "link" : "globe"} size={15} />
           <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
-            {project} · {languageName(lang)}
+            {isWeb ? `${project} · Open original` : `${project} · ${languageName(lang)}`}
           </a>
           {article.languages.length > 0 && (
             <>
@@ -494,10 +507,10 @@ export function ArticleView({ article }: { article: WikiArticle }) {
             <AsteriskMark size={22} />
           </span>
           <span className="byline-text">
-            <strong>{project} contributors</strong>
+            <strong>{isWeb ? article.byline || project : `${project} contributors`}</strong>
             <span className="byline-meta">
               <span>{formatReadingTime(article.readingMinutes)}</span>
-              {article.lastEdited && <span>Updated {formatDate(article.lastEdited)}</span>}
+              {article.lastEdited && <span>{isWeb ? formatDate(article.lastEdited) : `Updated ${formatDate(article.lastEdited)}`}</span>}
               {videoCount > 0 && <span>{pluralize(videoCount, "video")}</span>}
             </span>
           </span>
@@ -524,6 +537,12 @@ export function ArticleView({ article }: { article: WikiArticle }) {
               <Icon name="share" size={19} />
               <span className="label">Share</span>
             </button>
+            {aiEnabled && (
+              <button type="button" className="action-btn ask-btn" onClick={() => openAssistant()} title="Ask AI about this article (a)">
+                <Icon name="sparkle" size={18} />
+                <span className="label">Ask AI</span>
+              </button>
+            )}
           </div>
           <div className="action-group">
             {article.media.length > 0 && (
@@ -543,8 +562,8 @@ export function ArticleView({ article }: { article: WikiArticle }) {
               items={[
                 article.footnotes.length > 0 && { icon: "book", label: `References (${article.footnotes.length})`, onClick: () => setPanel("references") },
                 article.languages.length > 0 && { icon: "globe", label: "Other languages", onClick: () => setPanel("languages") },
-                { icon: "external", label: `Open on ${project}`, href: article.sourceUrl },
-                { icon: "link", label: "Copy link", onClick: () => copyText(absoluteArticleUrl(article.wiki, article.title), "Link copied") },
+                { icon: "external", label: isWeb ? "Open original" : `Open on ${project}`, href: article.sourceUrl },
+                { icon: "link", label: "Copy link", onClick: () => copyText(shareUrl, "Link copied") },
                 {
                   icon: "download",
                   label: "Download as Markdown",
@@ -559,9 +578,15 @@ export function ArticleView({ article }: { article: WikiArticle }) {
 
       {article.image && (
         // Portraits and tall images are shown whole; cropping them to a wide banner cuts off faces.
-        <figure className={`hero-figure ${article.image.height > article.image.width * 0.9 ? "is-tall" : ""}`}>
+        <figure className={`hero-figure ${article.image.width && article.image.height > article.image.width * 0.9 ? "is-tall" : ""}`}>
           <button type="button" onClick={() => setLightbox(-1)} aria-label="View image full screen">
-            <img src={article.image.src} alt="" width={article.image.width} height={article.image.height} fetchPriority="high" />
+            <img
+              src={article.image.src}
+              alt=""
+              width={article.image.width || undefined}
+              height={article.image.height || undefined}
+              fetchPriority="high"
+            />
           </button>
         </figure>
       )}
@@ -597,7 +622,7 @@ export function ArticleView({ article }: { article: WikiArticle }) {
           <ArticleBody outline={outline} />
         </div>
 
-        <ArticleEnd article={article} endRef={endRef} project={project} onLanguages={() => setPanel("languages")} />
+        <ArticleEnd article={article} webUrl={webUrl} endRef={endRef} project={project} onLanguages={() => setPanel("languages")} />
       </div>
 
       <nav className={`toc-rail ${pastHeader && !atEnd ? "is-visible" : ""}`} aria-label="Article contents">
@@ -618,6 +643,11 @@ export function ArticleView({ article }: { article: WikiArticle }) {
           <Icon name="pen" size={19} />
           {highlights.length > 0 && <span className="badge">{highlights.length}</span>}
         </button>
+        {aiEnabled && (
+          <button type="button" className="icon-btn" onClick={() => openAssistant()} aria-label="Ask AI" title="Ask AI (a)" tabIndex={showDock ? 0 : -1}>
+            <Icon name="sparkle" size={19} />
+          </button>
+        )}
         <span className="divider" />
         <button type="button" className="icon-btn" aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Remove from library" : "Save"} title="Save (s)" tabIndex={showDock ? 0 : -1}>
           <Icon name={saved ? "bookmarkFilled" : "bookmark"} size={19} />
@@ -664,6 +694,16 @@ export function ArticleView({ article }: { article: WikiArticle }) {
             void copyText(quoteText(selection.toString()), "Quote copied");
             window.getSelection()?.removeAllRanges();
           }}
+          onAsk={
+            aiEnabled
+              ? () => {
+                  const text = selection.toString().replace(/\s+/g, " ").trim().slice(0, 1500);
+                  window.getSelection()?.removeAllRanges();
+                  setSelection(null);
+                  openAssistant({ selection: text, question: "Explain this passage." });
+                }
+              : undefined
+          }
           onShare={async () => {
             const text = quoteText(selection.toString());
             if (navigator.share && coarsePointer()) await navigator.share({ text }).catch(() => undefined);
@@ -689,6 +729,7 @@ export function ArticleView({ article }: { article: WikiArticle }) {
                 onClick: () =>
                   library.addHighlight({
                     wiki: removed.wiki,
+                    url: removed.url ?? null,
                     articleTitle: removed.articleTitle,
                     sectionId: removed.sectionId,
                     sectionTitle: removed.sectionTitle,
@@ -806,11 +847,13 @@ const ArticleBody = memo(function ArticleBody({ outline }: { outline: OutlineEnt
 
 function ArticleEnd({
   article,
+  webUrl,
   endRef,
   project,
   onLanguages,
 }: {
   article: WikiArticle;
+  webUrl?: string;
   endRef: React.RefObject<HTMLElement | null>;
   project: string;
   onLanguages: () => void;
@@ -825,7 +868,8 @@ function ArticleEnd({
   }, [endRef]);
 
   // Only ask for recommendations once the reader gets close to the end.
-  const related = useQuery({ ...relatedQuery(article.wiki, article.title), enabled: nearEnd });
+  const related = useQuery({ ...relatedQuery(article.wiki, article.title), enabled: nearEnd && !webUrl });
+  const similar = useQuery({ ...similarPagesQuery(webUrl ?? ""), enabled: nearEnd && Boolean(webUrl) });
 
   return (
     <footer className="article-end" ref={endRef}>
@@ -833,6 +877,19 @@ function ArticleEnd({
         <AsteriskMark size={22} />
       </div>
 
+      {webUrl ? (
+        <div className="attribution">
+          <Icon name="link" size={20} />
+          <p>
+            Originally published by{" "}
+            <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
+              {article.byline ? `${article.byline}, ${project}` : project}
+            </a>
+            {article.lastEdited ? ` on ${formatDate(article.lastEdited)}` : ""}. WikiAsterisk shows a reader-friendly copy; the original page is the
+            authoritative version.
+          </p>
+        </div>
+      ) : (
       <div className="attribution">
         <Icon name="book" size={20} />
         <p>
@@ -852,6 +909,23 @@ function ArticleEnd({
           .
         </p>
       </div>
+      )}
+
+      {similar.data && similar.data.length > 0 && (
+        <section className="end-section" aria-labelledby="keep-reading-web">
+          <h2 id="keep-reading-web">Keep reading</h2>
+          <ul className="reading-list">
+            {similar.data.map((page) => (
+              <li key={page.url}>
+                <Link to="/web" search={{ url: page.url }} className="reading-row">
+                  <span className="reading-title">{page.title}</span>
+                  <span className="reading-desc">{page.description || page.site}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {related.data && related.data.length > 0 && (
         <section className="end-section" aria-labelledby="keep-reading">

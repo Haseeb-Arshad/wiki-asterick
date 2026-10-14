@@ -6,7 +6,7 @@ import { FEATURED_LANGUAGES, wikiLanguage } from "../../shared/wiki";
 import { useSession } from "../lib/auth";
 import { formatCompact, formatDate, formatRelative } from "../lib/format";
 import { useLibrary } from "../lib/library";
-import { articleLink } from "../lib/links";
+import { articleLink, refLink } from "../lib/links";
 import { wikiStore } from "../lib/preferences";
 import { feedQuery, fetchRandomArticle } from "../lib/queries";
 import { toast } from "../lib/toast";
@@ -106,7 +106,7 @@ function ContinueReading() {
       </div>
       <div className="shelf">
         {items.map((entry) => (
-          <Link key={`${entry.wiki}:${entry.title}`} {...articleLink(entry.wiki, entry.title, entry.sectionId ?? undefined)} className="shelf-card">
+          <Link key={`${entry.wiki}:${entry.title}`} {...refLink(entry, entry.sectionId ?? undefined)} className="shelf-card">
             <Thumb src={entry.thumbnail} width={120} />
             <span>
               <strong>{entry.title}</strong>

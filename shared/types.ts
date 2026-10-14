@@ -63,6 +63,9 @@ export interface WikiImage {
 }
 
 export interface WikiArticle {
+  /** "web" for pages opened from a shared link; wiki articles omit it. */
+  kind?: "wiki" | "web";
+  /** A Wikimedia host, or "web:<hostname>" for web pages. */
   wiki: string;
   title: string;
   description: string;
@@ -81,6 +84,9 @@ export interface WikiArticle {
   lastEdited: string | null;
   revisionId: number;
   sourceUrl: string;
+  /** Web pages: publication name and author. */
+  site?: string;
+  byline?: string;
 }
 
 export interface ArticleSummary {
@@ -151,6 +157,8 @@ export interface ArticleRef {
   title: string;
   description: string;
   thumbnail: string | null;
+  /** Original address, for web pages (wiki "web:<host>"). */
+  url?: string | null;
 }
 
 export interface Bookmark extends ArticleRef {
@@ -169,6 +177,7 @@ export interface Highlight {
   id: string;
   wiki: string;
   articleTitle: string;
+  url?: string | null;
   sectionId: string;
   sectionTitle: string;
   text: string;

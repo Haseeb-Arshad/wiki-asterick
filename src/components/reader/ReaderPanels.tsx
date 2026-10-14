@@ -341,6 +341,7 @@ const SHORTCUTS: [string, string[]][] = [
   ["Media gallery", ["m"]],
   ["References", ["r"]],
   ["Listen", ["p"]],
+  ["Ask AI", ["a"]],
   ["This help", ["?"]],
 ];
 

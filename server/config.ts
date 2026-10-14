@@ -50,4 +50,11 @@ export const config = {
   wikiUserAgent:
     process.env.WIKI_USER_AGENT ??
     "WikiAsterisk/2.0 (https://github.com/wiki-asterisk; reader app) Node.js",
+
+  // AI assistant (optional: the reader works without these keys).
+  openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+  exaApiKey: process.env.EXA_API_KEY ?? "",
+  aiQuickModel: process.env.AI_QUICK_MODEL ?? "anthropic/claude-haiku-5.5",
+  aiDeepModel: process.env.AI_DEEP_MODEL ?? "openai/gpt-6-luna",
+  appUrl: process.env.APP_URL ?? "https://github.com/Haseeb-Arshad/wiki-asterick",
 };

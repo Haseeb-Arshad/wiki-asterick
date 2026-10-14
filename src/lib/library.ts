@@ -122,6 +122,7 @@ const sameArticle = (a: { wiki: string; title: string }, wiki: string, title: st
 
 export interface NewHighlight {
   wiki: string;
+  url?: string | null;
   articleTitle: string;
   sectionId: string;
   sectionTitle: string;

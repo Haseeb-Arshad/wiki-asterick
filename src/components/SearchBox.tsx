@@ -3,6 +3,7 @@ import { useId, useRef, useState } from "react";
 import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from "../../shared/wiki";
 import { useOutsidePress } from "../lib/hooks";
 import { articleLink } from "../lib/links";
+import { openAssistant } from "../lib/assistant";
 import { rememberSearch } from "../lib/preferences";
 import { modKey, useArticleSearch, type SearchOption } from "../lib/search";
 import { Icon } from "./Icon";
@@ -38,12 +39,22 @@ export function SearchBox({
 
   function go(option: SearchOption) {
     setOpen(false);
+    if (option.kind === "ask") {
+      setQuery("");
+      openAssistant({ question: option.title });
+      return;
+    }
+    if (option.kind === "link" && option.url) {
+      navigate({ to: "/web", search: { url: option.url } });
+      return;
+    }
     rememberSearch({ wiki: option.wiki, title: option.title });
     navigate(articleLink(option.wiki, option.title));
   }
 
   function submit() {
-    const option = options[active] ?? (options[0]?.kind === "url" ? options[0] : null);
+    // Enter opens the highlighted row; links and questions go straight through.
+    const option = options[active] ?? (["url", "link", "ask"].includes(options[0]?.kind ?? "") ? options[0] : null);
     if (option) {
       go(option);
       return;

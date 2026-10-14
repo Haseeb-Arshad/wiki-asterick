@@ -47,3 +47,25 @@ export const feedQuery = (wiki: string) =>
 export function fetchRandomArticle(wiki: string) {
   return api<ArticleSummary>(`/api/wiki/random?${params({ wiki })}`);
 }
+
+export const webArticleQuery = (url: string) =>
+  queryOptions({
+    queryKey: ["web-article", url],
+    queryFn: ({ signal }) => api<WikiArticle>(`/api/web/article?${params({ url })}`, { signal }),
+    staleTime: 15 * MINUTE,
+    gcTime: 30 * MINUTE,
+  });
+
+export interface SimilarPage {
+  title: string;
+  url: string;
+  site: string;
+  description: string;
+}
+
+export const similarPagesQuery = (url: string) =>
+  queryOptions({
+    queryKey: ["similar", url],
+    queryFn: ({ signal }) => api<SimilarPage[]>(`/api/web/similar?${params({ url })}`, { signal }),
+    staleTime: 60 * MINUTE,
+  });

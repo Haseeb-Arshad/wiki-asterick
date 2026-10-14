@@ -5,6 +5,8 @@ import { Thumb } from "./Thumb";
 const KIND_ICON: Record<SearchOption["kind"], IconName> = {
   article: "book",
   url: "link",
+  link: "link",
+  ask: "sparkle",
   recent: "clock",
   action: "arrowRight",
   fulltext: "search",
@@ -32,7 +34,7 @@ export function SearchResultRow({
       id={id}
       role="option"
       aria-selected={selected}
-      className="result"
+      className={`result ${option.kind === "ask" ? "is-ask" : ""}`}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onSelect}
       onMouseMove={onHover}

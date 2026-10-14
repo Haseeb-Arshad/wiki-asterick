@@ -6,14 +6,18 @@ import { authRouter, readSession } from "./auth/routes.js";
 import { config } from "./config.js";
 import { HttpError, errorHandler, requireCsrfHeader } from "./http.js";
 import { libraryRouter } from "./library.js";
+import { aiRouter } from "./ai/routes.js";
+import { webRouter } from "./web/routes.js";
 import { wikiRouter } from "./wiki/routes.js";
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://upload.wikimedia.org https://thumb.wikimedia.org https://wikimedia.org https://maps.wikimedia.org",
-  "media-src 'self' https://upload.wikimedia.org https://commons.wikimedia.org",
+  // Shared web articles bring images and video from their own hosts.
+  "img-src 'self' data: https:",
+  "media-src 'self' https:",
+  "frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
   "font-src 'self'",
   "connect-src 'self'",
   "frame-ancestors 'none'",
@@ -46,6 +50,8 @@ export function createApp() {
   api.use("/auth", authRouter);
   api.use("/library", libraryRouter);
   api.use("/wiki", wikiRouter);
+  api.use("/web", webRouter);
+  api.use("/ai", aiRouter);
   api.use((_req, _res, next) => next(new HttpError(404, "Not found.")));
 
   app.use("/api", api);

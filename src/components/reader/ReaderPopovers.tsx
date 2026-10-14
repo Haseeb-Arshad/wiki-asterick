@@ -118,12 +118,15 @@ export function SelectionToolbar({
   onNote,
   onCopy,
   onShare,
+  onAsk,
 }: {
   getRect: () => DOMRect;
   onHighlight: (color: HighlightColor) => void;
   onNote: () => void;
   onCopy: () => void;
   onShare: () => void;
+  /** Present when AI is available: explain the selected passage. */
+  onAsk?: () => void;
 }) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
@@ -143,6 +146,11 @@ export function SelectionToolbar({
         </button>
       ))}
       <span className="divider" />
+      {onAsk && (
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onAsk} className="ask-selection">
+          <Icon name="sparkle" size={16} /> Ask
+        </button>
+      )}
       <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onNote}>
         <Icon name="note" size={16} /> Note
       </button>

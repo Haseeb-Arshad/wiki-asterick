@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { onSessionEnded } from "../lib/api";
@@ -10,7 +10,9 @@ import { useApplyTheme, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
+import { aiStatusQuery, openAssistant } from "../lib/assistant";
 import { AppHeader } from "./AppHeader";
+import { AssistantPanel } from "./Assistant";
 import { AsteriskMark } from "./AsteriskIcon";
 import { CommandPalette } from "./CommandPalette";
 import { Icon } from "./Icon";
@@ -33,9 +35,11 @@ export function RootLayout() {
     [queryClient]
   );
 
+  const aiStatus = useQuery(aiStatusQuery);
   useHotkeys({
     "mod+k": () => setPaletteOpen(true),
     "/": () => setPaletteOpen(true),
+    a: () => aiStatus.data?.enabled && openAssistant(),
   });
 
   return (
@@ -49,6 +53,7 @@ export function RootLayout() {
       </main>
       <AppFooter />
       <CommandPalette />
+      <AssistantPanel />
       <Toaster />
     </div>
   );

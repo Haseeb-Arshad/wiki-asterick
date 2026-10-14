@@ -19,29 +19,52 @@ const IMPORT_LIMIT = 500;
 
 // ---- validation -----------------------------------------------------------
 
+const WEB_WIKI = /^web:([a-z0-9-]+\.)+[a-z]{2,}$/i;
+
+/** A Wikimedia host, or "web:<hostname>" for pages opened from shared links. */
 function readWiki(value: unknown): string {
+  if (typeof value === "string" && WEB_WIKI.test(value)) return value.toLowerCase();
   const wiki = typeof value === "string" ? normalizeWikiHost(value) : null;
   if (!wiki) throw new HttpError(400, "Unsupported wiki.");
   return wiki;
 }
 
-/** Only keep Wikimedia-hosted images so stored rows cannot point at tracking pixels. */
-function readThumbnail(value: unknown): string | null {
+/** Web pages must carry their address, on the host their "web:" wiki names. */
+function readUrl(value: unknown, wiki: string): string | null {
+  if (!wiki.startsWith("web:")) return null;
+  try {
+    const url = new URL(String(value ?? ""));
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    if ((url.protocol === "https:" || url.protocol === "http:") && host === wiki.slice(4)) return url.toString().slice(0, 2000);
+  } catch {
+    // fall through
+  }
+  throw new HttpError(400, "A saved web page needs its link.");
+}
+
+/**
+ * Wiki thumbnails must come from Wikimedia; web pages may use their own image
+ * host, but only over https.
+ */
+function readThumbnail(value: unknown, wiki: string): string | null {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.hostname.endsWith(".wikimedia.org") ? url.toString() : null;
+    if (url.protocol !== "https:") return null;
+    return wiki.startsWith("web:") || url.hostname.endsWith(".wikimedia.org") ? url.toString().slice(0, 2000) : null;
   } catch {
     return null;
   }
 }
 
 function readArticleRef(body: Record<string, unknown>): ArticleRef {
+  const wiki = readWiki(body.wiki);
   return {
-    wiki: readWiki(body.wiki),
+    wiki,
     title: readString(body.title, "Title", { max: 300 }),
     description: readOptionalString(body.description, 500),
-    thumbnail: readThumbnail(body.thumbnail),
+    thumbnail: readThumbnail(body.thumbnail, wiki),
+    url: readUrl(body.url, wiki),
   };
 }
 
@@ -51,9 +74,11 @@ function readColor(value: unknown): HighlightColor {
 
 function readHighlight(body: Record<string, unknown>): Omit<Highlight, "createdAt" | "updatedAt"> {
   const id = typeof body.id === "string" && /^[\w-]{8,64}$/.test(body.id) ? body.id : randomUUID();
+  const wiki = readWiki(body.wiki);
   return {
     id,
-    wiki: readWiki(body.wiki),
+    wiki,
+    url: readUrl(body.url, wiki),
     articleTitle: readString(body.articleTitle, "Article title", { max: 300 }),
     sectionId: readOptionalString(body.sectionId, 300),
     sectionTitle: readOptionalString(body.sectionTitle, 300),
@@ -77,6 +102,7 @@ interface BookmarkRow {
   title: string;
   description: string;
   thumbnail: string | null;
+  url: string | null;
   created_at: number;
 }
 
@@ -89,6 +115,7 @@ interface HistoryRow extends Omit<BookmarkRow, "created_at"> {
 interface HighlightRow {
   id: string;
   wiki: string;
+  url: string | null;
   article_title: string;
   section_id: string;
   section_title: string;
@@ -106,6 +133,7 @@ const toBookmark = (row: BookmarkRow): Bookmark => ({
   title: row.title,
   description: row.description,
   thumbnail: row.thumbnail,
+  url: row.url,
   createdAt: row.created_at,
 });
 
@@ -114,6 +142,7 @@ const toHistory = (row: HistoryRow): HistoryEntry => ({
   title: row.title,
   description: row.description,
   thumbnail: row.thumbnail,
+  url: row.url,
   progress: row.progress,
   sectionId: row.section_id,
   readAt: row.read_at,
@@ -122,6 +151,7 @@ const toHistory = (row: HistoryRow): HistoryEntry => ({
 const toHighlight = (row: HighlightRow): Highlight => ({
   id: row.id,
   wiki: row.wiki,
+  url: row.url,
   articleTitle: row.article_title,
   sectionId: row.section_id,
   sectionTitle: row.section_title,
@@ -139,21 +169,23 @@ const listHistory = db.prepare(`SELECT * FROM history WHERE user_id = ? ORDER BY
 const listHighlights = db.prepare(`SELECT * FROM highlights WHERE user_id = ? ORDER BY created_at DESC`);
 
 const upsertBookmark = db.prepare(`
-  INSERT INTO bookmarks (user_id, wiki, title, description, thumbnail, created_at)
-  VALUES (?, ?, ?, ?, ?, ?)
+  INSERT INTO bookmarks (user_id, wiki, title, description, thumbnail, created_at, url)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (user_id, wiki, title) DO UPDATE SET
     description = excluded.description,
-    thumbnail = COALESCE(excluded.thumbnail, bookmarks.thumbnail)
+    thumbnail = COALESCE(excluded.thumbnail, bookmarks.thumbnail),
+    url = COALESCE(excluded.url, bookmarks.url)
 `);
 const getBookmark = db.prepare(`SELECT * FROM bookmarks WHERE user_id = ? AND wiki = ? AND title = ?`);
 const deleteBookmark = db.prepare(`DELETE FROM bookmarks WHERE user_id = ? AND wiki = ? AND title = ?`);
 
 const upsertHistory = db.prepare(`
-  INSERT INTO history (user_id, wiki, title, description, thumbnail, progress, section_id, read_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO history (user_id, wiki, title, description, thumbnail, progress, section_id, read_at, url)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (user_id, wiki, title) DO UPDATE SET
     description = excluded.description,
     thumbnail = COALESCE(excluded.thumbnail, history.thumbnail),
+    url = COALESCE(excluded.url, history.url),
     progress = excluded.progress,
     section_id = excluded.section_id,
     read_at = MAX(history.read_at, excluded.read_at)
@@ -168,8 +200,8 @@ const trimHistory = db.prepare(`
 `);
 
 const insertHighlight = db.prepare(`
-  INSERT INTO highlights (id, user_id, wiki, article_title, section_id, section_title, text, prefix, suffix, note, color, created_at, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO highlights (id, user_id, wiki, article_title, section_id, section_title, text, prefix, suffix, note, color, created_at, updated_at, url)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (id) DO NOTHING
 `);
 const getHighlight = db.prepare(`SELECT * FROM highlights WHERE id = ? AND user_id = ?`);
@@ -200,7 +232,8 @@ function saveHighlight(userId: string, highlight: Omit<Highlight, "createdAt" | 
     highlight.note,
     highlight.color,
     createdAt,
-    createdAt
+    createdAt,
+    highlight.url ?? null
   );
 }
 
@@ -229,7 +262,7 @@ libraryRouter.get("/", (req, res) => {
 libraryRouter.put("/bookmarks", (req, res) => {
   const userId = currentUserId(req);
   const ref = readArticleRef(asRecord(req.body));
-  upsertBookmark.run(userId, ref.wiki, ref.title, ref.description, ref.thumbnail, Date.now());
+  upsertBookmark.run(userId, ref.wiki, ref.title, ref.description, ref.thumbnail, Date.now(), ref.url ?? null);
   res.json(toBookmark(getBookmark.get(userId, ref.wiki, ref.title) as unknown as BookmarkRow));
 });
 
@@ -254,7 +287,8 @@ libraryRouter.put("/history", (req, res) => {
     ref.thumbnail,
     readProgress(body.progress),
     sectionId,
-    Date.now()
+    Date.now(),
+      ref.url ?? null
   );
   trimHistory.run(userId, userId);
   res.json(toHistory(getHistory.get(userId, ref.wiki, ref.title) as unknown as HistoryRow));
@@ -307,7 +341,7 @@ libraryRouter.post("/import", (req, res) => {
     for (const item of asRecords(body.bookmarks)) {
       try {
         const ref = readArticleRef(item);
-        upsertBookmark.run(userId, ref.wiki, ref.title, ref.description, ref.thumbnail, readTimestamp(item.createdAt));
+        upsertBookmark.run(userId, ref.wiki, ref.title, ref.description, ref.thumbnail, readTimestamp(item.createdAt), ref.url ?? null);
       } catch {
         // skip malformed entries rather than failing the whole import
       }
@@ -325,7 +359,8 @@ libraryRouter.post("/import", (req, res) => {
           ref.thumbnail,
           readProgress(item.progress),
           sectionId,
-          readTimestamp(item.readAt)
+          readTimestamp(item.readAt),
+      ref.url ?? null
         );
       } catch {
         // skip malformed entries

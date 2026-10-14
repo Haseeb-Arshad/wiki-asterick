@@ -29,6 +29,18 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 - Home page with today's featured article, trending articles with view sparklines, the picture of the day, news, and "on this day".
 - Instant search (`Ctrl/⌘ K`) with suggestions, full-text search with excerpts, and "Surprise me".
 
+**Any article link**
+- Paste any article link (a blog post, newsletter, news story) into search and it opens in the same reader: clean typography, sections, images and video, highlights, saving and AI help.
+- Pages are extracted with Mozilla Readability; sites that block bots fall back to Exa's copy of the page.
+- Links are fetched safely: private and internal network addresses are refused, every redirect is re-checked, and pages are size- and time-limited.
+
+**Ask AI**
+- A side panel (a bottom sheet on phones) that answers questions about the article you're reading, or anything at all, without leaving the page.
+- Answers stream in with numbered citations; source cards link to the article and to live web results from Exa.
+- Auto mode uses Claude Haiku 5.5 for quick questions and GPT-6 Luna with high reasoning for "why / compare / analyze" questions; you can also pick Fast or Deep. Deep answers show a live summary of what the model is thinking about.
+- Web search runs automatically when no article is open or when you ask about recent events; it can also be forced on or off.
+- Select any passage and press Ask to have it explained in context. Type a question into search and Ask AI is offered first. Shortcut: `A`.
+
 **Your library**
 - Highlights in four colors with notes, repainted on the text whenever you return.
 - Saved articles and reading history with "continue where you left off".
@@ -75,6 +87,16 @@ npm start
 ## Fonts
 
 The interface uses **Noe Text** and **Noe Standard** (Schick Toikka) and **Atlas Grotesk** (Commercial Type), loaded from `public/FONTT`. These are commercial typefaces; make sure a web licence covers the domain you deploy to. If the files are missing, the app falls back to the open-source **Newsreader** and **Geist**, which also cover scripts the commercial fonts don't (Greek, Cyrillic, Vietnamese).
+
+## AI setup
+
+AI answers are optional. Add keys to `.env` (see `.env.example`) and restart the server:
+
+- `OPENROUTER_API_KEY` enables answers. Set a spending limit on the key in the OpenRouter dashboard.
+- `EXA_API_KEY` enables live web search, "Keep reading" for web pages, and reading pages that block direct fetching.
+- `AI_QUICK_MODEL` and `AI_DEEP_MODEL` choose the models (defaults: `anthropic/claude-haiku-5.5` and `openai/gpt-6-luna`).
+
+Keys stay on the server; the browser only talks to `/api/ai`. Guests can ask 20 questions per 10 minutes and signed-in readers 60, so a public deployment can't run up the bill. Article text and web results are passed to the model as sources to quote, with an instruction to ignore any instructions inside them, and answers are rendered as plain Markdown (never raw HTML).
 
 ## How sign-in works (JWT)
 
@@ -126,6 +148,10 @@ All routes are under `/api`. Writes require the header `x-wa-request: 1`.
 | PUT / DELETE | `/library/history` | Record progress / clear history |
 | POST / PATCH / DELETE | `/library/highlights[/:id]` | Highlights and notes |
 | POST | `/library/import` | Merge a guest library after sign-in |
+| GET | `/web/article?url=<link>` | Any article page, extracted into the reader format |
+| GET | `/web/similar?url=<link>` | Similar pages (Exa) |
+| GET | `/ai/status` | Whether AI answers and web search are configured |
+| POST | `/ai/ask` | Streams an answer as newline-delimited JSON (`meta`, `status`, `sources`, `reasoning`, `delta`, `done`) |
 
 `wiki` accepts `en`, `de.wikivoyage`, `ur.wikipedia.org` and similar.
 
@@ -142,11 +168,13 @@ server/
   auth/            Password hashing, JWT and refresh tokens, auth routes
   library.ts       Bookmarks, highlights, history
   wiki/            Wikimedia API client, HTML parser/sanitizer, wiki routes
+  web/             Safe page fetcher (SSRF guard), reader-mode extraction, web routes
+  ai/              OpenRouter streaming, Exa search, article context, the /ai routes
 src/
   routes/          TanStack Router file routes
   components/      Pages and UI (reader/ holds the article reader)
   lib/             API client, session, library sync, search, text anchoring
-tests/             node:test suites (parser, URL helpers, auth and library API)
+tests/             node:test suites (parser, URL helpers, web extraction and link safety, AI routing, auth and library API)
 ```
 
 ## Attribution

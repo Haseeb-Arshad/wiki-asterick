@@ -4,7 +4,7 @@ import type { Highlight } from "../../shared/types";
 import { useSession } from "../lib/auth";
 import { formatDate, formatRelative, pluralize } from "../lib/format";
 import { useLibrary } from "../lib/library";
-import { articleLink } from "../lib/links";
+import { refLink } from "../lib/links";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
 import { Icon } from "./Icon";
@@ -109,6 +109,7 @@ function Empty({ icon, title, body }: { icon: Parameters<typeof Icon>[0]["name"]
 
 /** "Wikipedia · English" style label for a wiki host. */
 function sourceLabel(wiki: string): string {
+  if (wiki.startsWith("web:")) return wiki.slice(4);
   const [lang, project] = wiki.split(".");
   const projectName = project.charAt(0).toUpperCase() + project.slice(1);
   let language = lang;
@@ -145,7 +146,7 @@ function SavedList({ library }: { library: LibraryApi }) {
         {bookmarks.map((item) => (
           <tr key={`${item.wiki}:${item.title}`}>
             <td className="index-title">
-              <Link {...articleLink(item.wiki, item.title)}>{item.title}</Link>
+              <Link {...refLink(item)}>{item.title}</Link>
               {item.description && <small>{item.description}</small>}
             </td>
             <td className="hide-sm">{sourceLabel(item.wiki)}</td>
@@ -172,10 +173,10 @@ function SavedList({ library }: { library: LibraryApi }) {
 }
 function HighlightList({ highlights, onRemove }: { highlights: Highlight[]; onRemove: (id: string) => void }) {
   const groups = useMemo(() => {
-    const map = new Map<string, { wiki: string; title: string; items: Highlight[] }>();
+    const map = new Map<string, { wiki: string; title: string; url: string | null; items: Highlight[] }>();
     for (const highlight of highlights) {
       const key = `${highlight.wiki}:${highlight.articleTitle}`;
-      const group = map.get(key) ?? { wiki: highlight.wiki, title: highlight.articleTitle, items: [] };
+      const group = map.get(key) ?? { wiki: highlight.wiki, title: highlight.articleTitle, url: highlight.url ?? null, items: [] };
       group.items.push(highlight);
       map.set(key, group);
     }
@@ -191,7 +192,7 @@ function HighlightList({ highlights, onRemove }: { highlights: Highlight[]; onRe
       {groups.map((group) => (
         <section key={`${group.wiki}:${group.title}`} className="highlight-group">
           <h3>
-            <Link {...articleLink(group.wiki, group.title)}>{group.title}</Link>
+            <Link {...refLink(group)}>{group.title}</Link>
             <span className="section-meta">{pluralize(group.items.length, "highlight")}</span>
           </h3>
           {group.items.map((highlight) => (
@@ -204,7 +205,7 @@ function HighlightList({ highlights, onRemove }: { highlights: Highlight[]; onRe
                 </span>
                 <span className="actions">
                   <Link
-                    {...articleLink(group.wiki, group.title, highlight.sectionId || undefined)}
+                    {...refLink(group, highlight.sectionId || undefined)}
                     className="icon-btn"
                     aria-label="Open in article"
                     title="Open in article"
@@ -253,7 +254,7 @@ function HistoryList({ library, onClear }: { library: LibraryApi; onClear: () =>
           {history.map((entry) => (
             <tr key={`${entry.wiki}:${entry.title}`}>
               <td className="index-title">
-                <Link {...articleLink(entry.wiki, entry.title, entry.sectionId ?? undefined)}>{entry.title}</Link>
+                <Link {...refLink(entry, entry.sectionId ?? undefined)}>{entry.title}</Link>
                 {entry.description && <small>{entry.description}</small>}
               </td>
               <td className="hide-sm">

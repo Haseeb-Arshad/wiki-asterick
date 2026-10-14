@@ -52,7 +52,7 @@ function ArticleLoader({ wiki, title }: { wiki: string; title: string }) {
   return <ArticleView key={`${article!.wiki}:${article!.title}`} article={article!} />;
 }
 
-function ArticleSkeleton() {
+export function ArticleSkeleton() {
   return (
     <div className="reader" aria-busy="true" aria-label="Loading article">
       <div className="column article-header">

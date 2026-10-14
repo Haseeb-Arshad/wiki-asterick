@@ -1,10 +1,8 @@
-import { createHash } from "node:crypto";
-import { promisify } from "node:util";
-import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
-import { Router, type Request, type Response } from "express";
-import type { ArticleSummary, SearchHit, WikiFeed } from "../../shared/types.js";
+import { Router, type Request } from "express";
+import type { ArticleSummary, SearchHit, WikiArticle, WikiFeed } from "../../shared/types.js";
 import { normalizeWikiHost, parseWikiUrl, pathToTitle } from "../../shared/wiki.js";
 import { HttpError, TtlCache, asyncHandler, memoizeAsync, rateLimit } from "../http.js";
+import { readPayload, sendPayload, toPayload, type Payload } from "../payload.js";
 import {
   fetchFeed,
   fetchNamespacePrefixes,
@@ -16,49 +14,6 @@ import {
   searchTitles,
 } from "./api.js";
 import { buildArticle } from "./parser.js";
-
-const gzipAsync = promisify(gzip);
-const brotliAsync = promisify(brotliCompress);
-
-/** A JSON response compressed once and served many times. */
-interface Payload {
-  json: Buffer;
-  gzip: Buffer;
-  br: Buffer;
-  etag: string;
-}
-
-async function toPayload(value: unknown): Promise<Payload> {
-  const json = Buffer.from(JSON.stringify(value));
-  const [gz, br] = await Promise.all([
-    gzipAsync(json, { level: 6 }),
-    brotliAsync(json, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }),
-  ]);
-  return { json, gzip: gz, br, etag: `"${createHash("sha1").update(json).digest("base64url")}"` };
-}
-
-function sendPayload(req: Request, res: Response, payload: Payload, maxAgeSeconds: number) {
-  res.setHeader("Cache-Control", `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${maxAgeSeconds * 10}`);
-  res.setHeader("ETag", payload.etag);
-  res.setHeader("Vary", "Accept-Encoding");
-  res.type("application/json");
-
-  if (req.get("if-none-match") === payload.etag) {
-    res.status(304).end();
-    return;
-  }
-
-  const accepts = req.get("accept-encoding") ?? "";
-  if (/\bbr\b/.test(accepts)) {
-    res.setHeader("Content-Encoding", "br");
-    res.send(payload.br);
-  } else if (/\bgzip\b/.test(accepts)) {
-    res.setHeader("Content-Encoding", "gzip");
-    res.send(payload.gzip);
-  } else {
-    res.send(payload.json);
-  }
-}
 
 function readWiki(req: Request): string {
   const wiki = normalizeWikiHost(String(req.query.wiki ?? "en"));
@@ -112,7 +67,12 @@ const articles = memoizeAsync(new TtlCache<Payload>(80, 30 * MINUTE), async (key
   return toPayload(article);
 });
 
-const summaries = memoizeAsync(new TtlCache<Payload>(1000, 30 * MINUTE), async (key) => {
+/** The parsed article, from the same cache the reader uses (for AI context). */
+export async function loadWikiArticle(wiki: string, title: string): Promise<WikiArticle> {
+  return readPayload<WikiArticle>(await articles(`${wiki}|${title}`));
+}
+
+const summaries =memoizeAsync(new TtlCache<Payload>(1000, 30 * MINUTE), async (key) => {
   const [wiki, title] = key.split("|");
   const { summary } = await fetchSummary(wiki, title);
   return toPayload(summary satisfies ArticleSummary);

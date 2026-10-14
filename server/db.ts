@@ -74,6 +74,12 @@ const MIGRATIONS = [
   );
   CREATE INDEX highlights_article ON highlights(user_id, wiki, article_title);
   `,
+  // 2: web pages opened from shared links ("web:<host>" wikis) need their address.
+  `
+  ALTER TABLE bookmarks ADD COLUMN url TEXT;
+  ALTER TABLE history ADD COLUMN url TEXT;
+  ALTER TABLE highlights ADD COLUMN url TEXT;
+  `,
 ];
 
 function migrate() {

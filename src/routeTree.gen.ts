@@ -16,6 +16,7 @@ import { Route as LibraryRouteImport } from "./routes/library"
 import { Route as SearchRouteImport } from "./routes/search"
 import { Route as SigninRouteImport } from "./routes/signin"
 import { Route as SignupRouteImport } from "./routes/signup"
+import { Route as WebRouteImport } from "./routes/web"
 import { Route as ReadWikiSplatRouteImport } from "./routes/read.$wiki.$"
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const SignupRoute = SignupRouteImport.update({
   path: "/signup",
   getParentRoute: () => rootRouteImport,
 } as any)
+const WebRoute = WebRouteImport.update({
+  id: "/web",
+  path: "/web",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReadWikiSplatRoute = ReadWikiSplatRouteImport.update({
   id: "/read/$wiki/$",
   path: "/read/$wiki/$",
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   "/search": typeof SearchRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
+  "/web": typeof WebRoute
   "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   "/search": typeof SearchRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
+  "/web": typeof WebRoute
   "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   "/search": typeof SearchRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
+  "/web": typeof WebRoute
   "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/signup"
+    | "/web"
     | "/read/$wiki/$"
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/signup"
+    | "/web"
     | "/read/$wiki/$"
   id:
     | "__root__"
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/signup"
+    | "/web"
     | "/read/$wiki/$"
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
+  WebRoute: typeof WebRoute
   ReadWikiSplatRoute: typeof ReadWikiSplatRoute
 }
 
@@ -185,6 +198,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/web": {
+      id: "/web"
+      path: "/web"
+      fullPath: "/web"
+      preLoaderRoute: typeof WebRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/read/$wiki/$": {
       id: "/read/$wiki/$"
       path: "/read/$wiki/$"
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
+  WebRoute: WebRoute,
   ReadWikiSplatRoute: ReadWikiSplatRoute,
 }
 export const routeTree = rootRouteImport
