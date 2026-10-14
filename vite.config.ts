@@ -1,18 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
+
+const apiPort = process.env.API_PORT ?? "3001";
 
 export default defineConfig({
   plugins: [
-    TanStackRouterVite({ quoteStyle: "double" }),
+    tanstackRouter({ target: "react", autoCodeSplitting: true, quoteStyle: "double" }),
     react(),
     tailwindcss(),
   ],
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
     },

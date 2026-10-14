@@ -9,55 +9,133 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root"
-import { Route as ArticleRouteImport } from "./routes/article"
 import { Route as IndexRouteImport } from "./routes/index"
+import { Route as AccountRouteImport } from "./routes/account"
+import { Route as ArticleRouteImport } from "./routes/article"
+import { Route as LibraryRouteImport } from "./routes/library"
+import { Route as SearchRouteImport } from "./routes/search"
+import { Route as SigninRouteImport } from "./routes/signin"
+import { Route as SignupRouteImport } from "./routes/signup"
+import { Route as ReadWikiSplatRouteImport } from "./routes/read.$wiki.$"
 
-const ArticleRoute = ArticleRouteImport.update({
-  id: "/article",
-  path: "/article",
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountRoute = AccountRouteImport.update({
+  id: "/account",
+  path: "/account",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArticleRoute = ArticleRouteImport.update({
+  id: "/article",
+  path: "/article",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: "/library",
+  path: "/library",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: "/search",
+  path: "/search",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigninRoute = SigninRouteImport.update({
+  id: "/signin",
+  path: "/signin",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: "/signup",
+  path: "/signup",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadWikiSplatRoute = ReadWikiSplatRouteImport.update({
+  id: "/read/$wiki/$",
+  path: "/read/$wiki/$",
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
+  "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
+  "/library": typeof LibraryRoute
+  "/search": typeof SearchRoute
+  "/signin": typeof SigninRoute
+  "/signup": typeof SignupRoute
+  "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
+  "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
+  "/library": typeof LibraryRoute
+  "/search": typeof SearchRoute
+  "/signin": typeof SigninRoute
+  "/signup": typeof SignupRoute
+  "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
+  "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
+  "/library": typeof LibraryRoute
+  "/search": typeof SearchRoute
+  "/signin": typeof SigninRoute
+  "/signup": typeof SignupRoute
+  "/read/$wiki/$": typeof ReadWikiSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/article"
+  fullPaths:
+    | "/"
+    | "/account"
+    | "/article"
+    | "/library"
+    | "/search"
+    | "/signin"
+    | "/signup"
+    | "/read/$wiki/$"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/article"
-  id: "__root__" | "/" | "/article"
+  to:
+    | "/"
+    | "/account"
+    | "/article"
+    | "/library"
+    | "/search"
+    | "/signin"
+    | "/signup"
+    | "/read/$wiki/$"
+  id:
+    | "__root__"
+    | "/"
+    | "/account"
+    | "/article"
+    | "/library"
+    | "/search"
+    | "/signin"
+    | "/signup"
+    | "/read/$wiki/$"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
   ArticleRoute: typeof ArticleRoute
+  LibraryRoute: typeof LibraryRoute
+  SearchRoute: typeof SearchRoute
+  SigninRoute: typeof SigninRoute
+  SignupRoute: typeof SignupRoute
+  ReadWikiSplatRoute: typeof ReadWikiSplatRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    "/article": {
-      id: "/article"
-      path: "/article"
-      fullPath: "/article"
-      preLoaderRoute: typeof ArticleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     "/": {
       id: "/"
       path: "/"
@@ -65,12 +143,67 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/account": {
+      id: "/account"
+      path: "/account"
+      fullPath: "/account"
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/article": {
+      id: "/article"
+      path: "/article"
+      fullPath: "/article"
+      preLoaderRoute: typeof ArticleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/library": {
+      id: "/library"
+      path: "/library"
+      fullPath: "/library"
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/search": {
+      id: "/search"
+      path: "/search"
+      fullPath: "/search"
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/signin": {
+      id: "/signin"
+      path: "/signin"
+      fullPath: "/signin"
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/signup": {
+      id: "/signup"
+      path: "/signup"
+      fullPath: "/signup"
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/read/$wiki/$": {
+      id: "/read/$wiki/$"
+      path: "/read/$wiki/$"
+      fullPath: "/read/$wiki/$"
+      preLoaderRoute: typeof ReadWikiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
   ArticleRoute: ArticleRoute,
+  LibraryRoute: LibraryRoute,
+  SearchRoute: SearchRoute,
+  SigninRoute: SigninRoute,
+  SignupRoute: SignupRoute,
+  ReadWikiSplatRoute: ReadWikiSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
