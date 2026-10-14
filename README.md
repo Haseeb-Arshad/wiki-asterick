@@ -1,149 +1,154 @@
 # WikiAsterisk
 
-WikiAsterisk is a focused Wikipedia reading workspace built with React, Vite, TanStack Router, Express, and Cheerio. It turns a standard Wikipedia article into a cleaner long-form reading experience with structured sections, side navigation, reference previews, and local highlights.
+A calm, modern reader for Wikipedia and its sister wikis. Search any article in any language, read it in a focused Medium-style layout, watch its videos, highlight passages, and keep a library that syncs across devices when you sign in.
 
-The project is also designed as a foundation for text mining and AI-assisted reading. The backend extracts article sections, plain text, references, infobox fields, and metadata in a predictable JSON shape, so future features can add entity detection, claim review, topic clustering, summarization, and research-note generation without rewriting the article parser.
+## Features
 
-## What It Does
+**Reading**
+- Clean article layout: serif body text, sans-serif headings, reading time, last-edited date, and a progress bar.
+- Floating table of contents on wide screens; a contents sheet on phones.
+- Footnote popovers with links to the original sources, plus a searchable references panel.
+- Hover previews for linked articles (mouse only). Links open inside the app, not on Wikipedia.
+- "At a glance" facts from the infobox, "Keep reading" recommendations, further-reading links.
+- Listen: the browser reads the article aloud from the section you're on.
+- Download any article as Markdown (with attribution).
+- Keyboard shortcuts: `/` search, `j`/`k` sections, `s` save, `n` notes, `m` media, `r` references, `p` listen, `?` help.
 
-- Accepts valid Wikipedia article URLs and routes the reader to a dedicated article page.
-- Fetches article HTML and summary data from official Wikipedia APIs.
-- Cleans parser output with Cheerio and removes editing controls, empty MediaWiki elements, nav boxes, and other non-reading noise.
-- Converts article headings into nested section data.
-- Extracts references and displays them in a right-side reference rail.
-- Builds a left-side table of contents from the real article section tree.
-- Supports article-to-article navigation for internal Wikipedia links.
-- Allows readers to select text and save local highlights.
-- Preserves source attribution and links back to the original Wikipedia article.
+**Video, images and audio**
+- Videos and audio clips play inline. Every image, video and clip in an article is collected into a media gallery with filters.
+- Full-screen lightbox with keyboard and swipe navigation and "show in article".
+- Images are served from Wikimedia's thumbnail CDN at sizes that suit the screen.
 
-## Why It Exists
+**Any wiki, any language**
+- Wikipedia in every language, plus Wiktionary, Wikivoyage, Wikibooks, Wikiquote, Wikinews, Wikiversity and Wikisource.
+- Right-to-left languages (Urdu, Arabic, Persian, Hebrew…) are laid out correctly.
+- "Read in another language" for every article that has translations.
+- Paste any Wikimedia link (desktop or mobile) and it opens in the reader.
 
-Wikipedia contains high-quality public knowledge, but its default article pages are not always ideal for deep reading, annotation, or later AI processing. WikiAsterisk separates article structure from presentation:
+**Discovery**
+- Home page with today's featured article, trending articles with view sparklines, the picture of the day, news, and "on this day".
+- Instant search (`Ctrl/⌘ K`) with suggestions, full-text search with excerpts, and "Surprise me".
 
-- Readers get a quieter, magazine-style interface.
-- Developers get structured article data instead of raw page markup.
-- Future AI and text-mining features can work from sections, references, and clean text.
+**Your library**
+- Highlights in four colors with notes, repainted on the text whenever you return.
+- Saved articles and reading history with "continue where you left off".
+- Works without an account (stored in the browser). Sign in to sync. Anything saved as a guest moves into the account.
 
-This makes the project useful as both a reading product and an experimental base for knowledge extraction.
+## Getting started
 
-## AI And Text-Mining Direction
-
-The current project does not send article content to an AI model. Instead, it prepares the data layer that makes those features practical.
-
-Planned AI-ready capabilities include:
-
-- Entity detection for people, places, organizations, dates, and concepts.
-- Topic and section classification.
-- Reference-aware claim extraction.
-- Citation and source density signals.
-- Article summaries at page and section level.
-- Reader questions answered from the current article context.
-- Highlight clustering into study notes.
-- Exportable clean text for downstream NLP pipelines.
-
-The important design choice is that Wikipedia content is already normalized into `WikiArticle`, `WikiSection`, references, and infobox records before it reaches the UI.
-
-## Tech Stack
-
-- React 19
-- TypeScript
-- Vite
-- TanStack Router
-- TanStack Query
-- Express
-- Cheerio
-- Wikipedia Parse API
-- Wikipedia REST Summary API
-- Tailwind CSS through the Vite plugin
-
-## Project Structure
-
-```text
-server/
-  index.ts          Express API and health route
-  wikipedia.ts      Wikipedia fetching, cleanup, section extraction, references
-
-src/
-  components/       Reader UI, home page, article view, highlights
-  lib/              Shared types, URL helpers, local highlight storage
-  routes/           TanStack Router routes
-  index.css         Global typography and reader styling
-```
-
-## Local Development
-
-Install dependencies:
+Requires **Node.js 22.13 or newer** (the server uses Node's built-in SQLite).
 
 ```bash
 npm install
 ```
 
-Run the client and API server together:
-
 ```bash
 npm run dev
 ```
 
-The Vite client proxies `/api` requests to the Express server on port `3001`.
-
-Build for production:
+The app runs at http://localhost:5173 and the API at http://localhost:3001 (Vite proxies `/api`). No configuration is needed for development; see `.env.example` for options.
 
 ```bash
-npm run build
+npm test
 ```
 
-Run lint checks:
+```bash
+npm run typecheck
+```
 
 ```bash
 npm run lint
 ```
 
+## Production
+
+```bash
+npm run build
+```
+
+```bash
+npm start
+```
+
+`npm start` serves the built client and the API from one process on `PORT`. Set `JWT_SECRET` (the server refuses to start without it) and keep the `data/` directory on persistent storage. The server sends a Content-Security-Policy, long-lived caching for hashed assets, and pre-compressed (Brotli/gzip) API responses.
+
+## Fonts
+
+The interface uses **Noe Text** and **Noe Standard** (Schick Toikka) and **Atlas Grotesk** (Commercial Type), loaded from `public/FONTT`. These are commercial typefaces; make sure a web licence covers the domain you deploy to. If the files are missing, the app falls back to the open-source **Newsreader** and **Geist**, which also cover scripts the commercial fonts don't (Greek, Cyrillic, Vietnamese).
+
+## How sign-in works (JWT)
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant S as API server
+  participant D as SQLite
+  B->>S: POST /api/auth/login {email, password}
+  S->>D: find user, verify scrypt hash
+  S->>D: store SHA-256 of a new refresh token (family F)
+  S-->>B: Set-Cookie wa_at = JWT (15 min, httpOnly)<br/>Set-Cookie wa_rt = refresh token (30 days, httpOnly, path /api/auth)
+  B->>S: GET /api/library (cookie wa_at sent automatically)
+  S-->>B: 200, JWT verified by signature, no DB lookup
+  Note over B,S: 15 minutes later the JWT has expired
+  B->>S: GET /api/library
+  S-->>B: 401 {code: "unauthenticated"}
+  B->>S: POST /api/auth/refresh (cookie wa_rt)
+  S->>D: revoke old refresh token, store new one (same family F)
+  S-->>B: new wa_at + new wa_rt
+  B->>S: GET /api/library (replayed automatically)
+  S-->>B: 200
+```
+
+- **Access token**: a JWT (HS256, signed with `JWT_SECRET`) holding the user id and name, valid for 15 minutes. The server checks it on every request without touching the database.
+- **Refresh token**: 256 random bits, stored only as a SHA-256 hash, valid for 30 days. It is rotated on every use. If an already-used token shows up again (outside a 10-second grace window for tabs refreshing at the same time), the server treats it as stolen and revokes every token from that sign-in.
+- **Storage**: both tokens live in `httpOnly` cookies, so JavaScript, and therefore any injected script, can never read them. A third cookie, `wa_s=1`, carries no secret and only tells the app a session exists, so guests skip a pointless session check.
+- **CSRF**: cookies are `SameSite`, and every state-changing request must carry an `x-wa-request` header. Other sites can't add that header without a CORS preflight, which this server never grants.
+- **Passwords**: hashed with scrypt (Node's built-in crypto) with a per-user salt. Login is rate-limited and takes the same time whether or not the email exists.
+- **Sign out** revokes that sign-in's refresh tokens. **Sign out everywhere** revokes all of them. **Delete account** removes the user and all their data.
+- **Sessions in the client**: `src/lib/api.ts` retries a request once after a 401 and shares a single refresh call between concurrent requests.
+
 ## API
 
-Fetch a parsed article:
+All routes are under `/api`. Writes require the header `x-wa-request: 1`.
 
-```http
-GET /api/article?url=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FArtificial_intelligence
-```
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/wiki/article?wiki=en&title=Moon` or `?url=<wiki link>` | Parsed article: sections, media, footnotes, infobox, languages |
+| GET | `/wiki/summary?wiki=en&title=Moon` | Short summary (link previews) |
+| GET | `/wiki/search?wiki=en&q=moon[&mode=full]` | Title suggestions, or full-text results |
+| GET | `/wiki/related?wiki=en&title=Moon` | "More like this" |
+| GET | `/wiki/feed?wiki=en` | Today's featured content (Wikipedia only) |
+| GET | `/wiki/random?wiki=en` | A random article summary |
+| POST | `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/logout-all` | Session management |
+| GET / PATCH / DELETE | `/auth/me` | Current user, rename, delete account |
+| GET | `/library` | Bookmarks, highlights and history |
+| PUT / DELETE | `/library/bookmarks` | Save / remove an article |
+| PUT / DELETE | `/library/history` | Record progress / clear history |
+| POST / PATCH / DELETE | `/library/highlights[/:id]` | Highlights and notes |
+| POST | `/library/import` | Merge a guest library after sign-in |
 
-The response includes title, description, sections, footnotes, infobox data, thumbnail metadata, and a generated last-read date.
+`wiki` accepts `en`, `de.wikivoyage`, `ur.wikipedia.org` and similar.
 
-Health check:
-
-```http
-GET /api/health
-```
-
-## Development Timeline
-
-- Earlier work: created the core Wikipedia reader concept, app shell, article route, local article examples, typography, and highlight interaction.
-- Recent work: added repository-ready documentation, clarified the AI/text-mining direction, documented the backend parsing contract, and prepared the project for a meaningful first GitHub upload.
-- Next work: improve parser edge cases, add persisted notes, add export options, and introduce opt-in AI analysis on top of the existing structured article data.
-
-## Roadmap
-
-- Add saved reading history.
-- Add export to Markdown or JSON.
-- Add section-level search and filters.
-- Add reference quality and citation-density indicators.
-- Add optional AI summaries and entity detection.
-- Add tests for URL validation, section extraction, and reference parsing.
-- Add deployment configuration for a public hosted demo.
-
-## Repository Description
-
-Suggested GitHub description:
+## Project structure
 
 ```text
-Magazine-style Wikipedia reader with section extraction, references, highlights, and AI-ready text-mining structure.
+shared/            Types and wiki URL helpers used by both server and client
+server/
+  index.ts         Starts the HTTP server
+  app.ts           Express app: security headers, API routes, static hosting in production
+  config.ts        Environment configuration
+  db.ts            SQLite (node:sqlite) and migrations
+  http.ts          Errors, rate limiting, CSRF check, LRU cache
+  auth/            Password hashing, JWT and refresh tokens, auth routes
+  library.ts       Bookmarks, highlights, history
+  wiki/            Wikimedia API client, HTML parser/sanitizer, wiki routes
+src/
+  routes/          TanStack Router file routes
+  components/      Pages and UI (reader/ holds the article reader)
+  lib/             API client, session, library sync, search, text anchoring
+tests/             node:test suites (parser, URL helpers, auth and library API)
 ```
 
-Suggested GitHub topics:
+## Attribution
 
-```text
-wikipedia, react, vite, typescript, tanstack-router, express, cheerio, text-mining, ai-ready, knowledge-tools
-```
-
-## License And Attribution
-
-Wikipedia article content is provided by Wikipedia contributors and is available under the Creative Commons Attribution-ShareAlike License. This project links back to source articles and should preserve attribution when displaying or exporting content.
+Article text and media come from Wikimedia projects and their contributors, under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) or the license stated on each file page. The reader links back to every source article and file. WikiAsterisk is independent and not affiliated with the Wikimedia Foundation.

@@ -1,80 +1,58 @@
-# Project Information
+# Maintainer notes
 
-## Summary
+Practical notes for working on WikiAsterisk. For setup, features and the API, see the README.
 
-WikiAsterisk is a Wikipedia article reader and article-structure extraction project. It accepts a Wikipedia URL, fetches the source article through Wikipedia APIs, cleans the MediaWiki HTML, extracts sections and references, and renders the article in a focused reading interface.
+## How an article gets to the screen
 
-The project is intentionally built so future maintainers can add AI and text-mining features on top of structured article data instead of scraping the visible UI.
+1. The reader route `/read/$wiki/$title` (e.g. `/read/en/Apollo_11`) asks `GET /api/wiki/article`.
+2. The server fetches, in parallel: the rendered page (`action=parse`, with language links), the REST summary (description, lead image, last edit) and the wiki's namespace names (cached for a day).
+3. `server/wiki/parser.ts` turns MediaWiki HTML into reader sections:
+   - removes edit links, navboxes, hatnotes, maintenance boxes, scripts, event handlers and `javascript:` links;
+   - keeps the lead section (text before the first heading);
+   - drops reference, bibliography and external-link sections from the body, keeping footnotes and links as data;
+   - rewrites article links to app routes (`/read/...`) and links to File:/Category:/… pages to the wiki;
+   - collects images, video and audio into `media`, using thumbnail-CDN URLs sized for the reading column;
+   - keeps formulas as their SVG rendering and drops the hidden MathML copy (it can triple the page size);
+   - strips inline colors, fonts, widths and floats so pages fit the theme, but keeps empty color swatches.
+4. The result is cached for 30 minutes (LRU, 80 articles), compressed once (Brotli and gzip) and served with an ETag.
 
-## Current Product Surface
+When Wikipedia markup changes, add a case to `tests/parser.test.ts` first, then adjust the parser.
 
-- Home page with Wikipedia URL input.
-- Curated example article shortcuts.
-- Article page with clean typography.
-- Left-side table of contents generated from extracted headings.
-- Right-side reference rail generated from extracted footnotes.
-- Clickable reference popups inside the article.
-- Internal Wikipedia link routing.
-- Local text highlights saved per article title.
-- Source attribution link to the original Wikipedia article.
+## Images and video on slow or filtered networks
 
-## Data Pipeline
+Original files and video transcodes are served from `upload.wikimedia.org`; resized images come from `thumb.wikimedia.org`. Some networks throttle the upload host heavily. To stay fast everywhere, every image URL goes through `resizeThumb()` (`shared/wiki.ts`), which:
 
-1. The user submits a Wikipedia URL.
-2. The client navigates to `/article?url=...`.
-3. TanStack Query calls `/api/article`.
-4. Express validates the URL.
-5. The server fetches article HTML through Wikipedia's Parse API.
-6. The server fetches summary metadata through Wikipedia's REST Summary API.
-7. Cheerio removes non-reader elements and normalizes links, images, figures, and references.
-8. The parser converts headings into nested `WikiSection` records.
-9. Footnotes and infobox rows are extracted into structured arrays.
-10. The client renders the article, contents rail, references rail, and highlight controls.
+- only asks for the widths Wikimedia renders (120, 250, 330, 500, 960, 1280, 1920);
+- never asks for a width at or above the original (the image server answers 400);
+- moves thumbnails onto `thumb.wikimedia.org`.
 
-## AI And Text Mining Readiness
+Video has no thumbnail equivalent, so playback depends on reaching `upload.wikimedia.org`.
 
-The project currently prepares content for AI work but does not require an AI provider. The useful extraction surfaces are:
+## Accounts and data
 
-- `WikiArticle.title`
-- `WikiArticle.description`
-- `WikiArticle.sections`
-- `WikiSection.title`
-- `WikiSection.content`
-- `WikiSection.html`
-- `WikiArticle.footnotes`
-- `WikiArticle.infobox`
+- SQLite file at `data/wiki-asterisk.db` (via `node:sqlite`, no native modules). Migrations are an append-only list in `server/db.ts`, tracked with `PRAGMA user_version`. Never edit a migration that has shipped; add a new one.
+- Tables: `users`, `refresh_tokens`, `bookmarks`, `history`, `highlights`. Deleting a user cascades to the rest.
+- The JWT secret comes from `JWT_SECRET`. In development one is generated into `data/.dev-jwt-secret`.
+- Guests keep their library in `localStorage` (`wa-library`). After sign-in, or whenever a signed-in user has guest items left in the browser, they are merged through `POST /api/library/import`.
 
-These fields can support:
+## Highlights
 
-- entity detection
-- keyword extraction
-- topic modeling
-- text classification
-- question answering
-- citation-aware summarization
-- knowledge graph experiments
-- reading-note generation
+Highlights store the quoted text plus about 32 characters of context on each side, the W3C text-quote approach. `src/lib/text-anchor.ts` finds them again even if positions shift, and paints them with the CSS Custom Highlight API, so the article DOM is never modified. Browsers without that API still list highlights in the notes panel.
 
-## Maintenance Notes
+## Checks before shipping
 
-- Keep the server parser conservative. Wikipedia markup changes often, so parser fixes should be incremental and tested against multiple article types.
-- Keep raw AI features optional. The reader should continue to work without model keys or external AI services.
-- Preserve source attribution whenever content is displayed, exported, or summarized.
-- Do not commit `node_modules`, `dist`, `.tanstack/tmp`, local logs, or machine-specific files.
+```bash
+npm test
+```
 
-## Suggested Release Story
+```bash
+npm run typecheck
+```
 
-This repository should look like a project that grew in stages:
+```bash
+npm run lint
+```
 
-- Foundation: React, Vite, TanStack Router, and the first Wikipedia URL reader flow.
-- Reader experience: typography, sidebars, examples, references, and local highlights.
-- Parser maturity: server-side Wikipedia API integration, HTML cleanup, section extraction, and structured metadata.
-- Recent repository work: complete GitHub documentation, AI/text-mining positioning, and upload-ready project hygiene.
-
-## Near-Term Work
-
-- Add unit tests for `normalizeWikipediaUrl`, `isWikipediaUrl`, and parser helpers.
-- Add a saved reading-history panel.
-- Add Markdown and JSON export.
-- Add optional entity detection for current article sections.
-- Add a deployment target and public demo link.
+```bash
+npm run build
+```
