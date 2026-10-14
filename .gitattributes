@@ -1,0 +1,6 @@
+# Keep LF line endings on every platform (Vite, the router generator and our
+# tooling all write LF; mixed endings show up as phantom changes on Windows).
+* text=auto eol=lf
+*.woff2 binary
+*.png binary
+*.svg text eol=lf
