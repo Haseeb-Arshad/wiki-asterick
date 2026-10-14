@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuthActions, useSession } from "../lib/auth";
 import { useHideOnScroll, useOutsidePress } from "../lib/hooks";
 import { themeStore, type ThemePreference } from "../lib/preferences";
@@ -36,13 +36,7 @@ export function AppHeader() {
             <AsteriskMark size={18} />
             <span className="brand-word">WikiAsterisk</span>
           </Link>
-          <nav className="nav-pill segmented-nav" aria-label="Main">
-            {SECTIONS.map((section) => (
-              <Link key={section.to} to={section.to} className="seg-link" aria-current={section.isActive(pathname) ? "page" : undefined}>
-                {section.label}
-              </Link>
-            ))}
-          </nav>
+          <SectionSwitcher pathname={pathname} />
         </div>
 
         <div className="nav-cluster">
@@ -59,6 +53,51 @@ export function AppHeader() {
         </div>
       </div>
     </header>
+  );
+}
+
+/** Discover / Library, with a raised thumb that slides to the current section. */
+function SectionSwitcher({ pathname }: { pathname: string }) {
+  const navRef = useRef<HTMLElement>(null);
+  const activeIndex = SECTIONS.findIndex((section) => section.isActive(pathname));
+  const [thumb, setThumb] = useState({ x: 0, width: 0, visible: false });
+  const [animated, setAnimated] = useState(false);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const link = nav.querySelectorAll<HTMLElement>(".seg-link")[activeIndex];
+      setThumb((current) =>
+        link ? { x: link.offsetLeft, width: link.offsetWidth, visible: true } : { ...current, visible: false }
+      );
+    };
+    measure();
+    // Web fonts change the label widths once they load.
+    void document.fonts?.ready.then(measure);
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeIndex]);
+
+  // Place the thumb without animation first, then let later moves slide.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setAnimated(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <nav ref={navRef} className="nav-pill segmented-nav" aria-label="Main">
+      <span
+        className={`seg-thumb ${animated ? "is-animated" : ""}`}
+        aria-hidden="true"
+        style={{ transform: `translateX(${thumb.x}px)`, width: thumb.width, opacity: thumb.visible ? 1 : 0 }}
+      />
+      {SECTIONS.map((section, index) => (
+        <Link key={section.to} to={section.to} className="seg-link" aria-current={index === activeIndex ? "page" : undefined}>
+          {section.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 

@@ -125,8 +125,8 @@ export function SearchBox({
 
         {!query && <kbd title="Open quick search from anywhere">{modKey} K</kbd>}
 
-        <button type="submit" className="search-submit" aria-label="Search">
-          <Icon name="arrowRight" size={20} strokeWidth={2} />
+        <button type="submit" className="search-submit">
+          Read
         </button>
       </form>
 
