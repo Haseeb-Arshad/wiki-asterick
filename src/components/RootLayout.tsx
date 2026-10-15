@@ -10,9 +10,10 @@ import { useApplyTheme, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
-import { aiStatusQuery, openAssistant } from "../lib/assistant";
+import { aiStatusQuery, focusAskBar } from "../lib/assistant";
+import { AskBar } from "./ai/AskBar";
+import { NotesDrawer } from "./ai/NotesDrawer";
 import { AppHeader } from "./AppHeader";
-import { AssistantPanel } from "./Assistant";
 import { AsteriskMark } from "./AsteriskIcon";
 import { CommandPalette } from "./CommandPalette";
 import { Icon } from "./Icon";
@@ -39,7 +40,11 @@ export function RootLayout() {
   useHotkeys({
     "mod+k": () => setPaletteOpen(true),
     "/": () => setPaletteOpen(true),
-    a: () => aiStatus.data?.enabled && openAssistant(),
+    a: (event) => {
+      if (!aiStatus.data?.enabled) return;
+      event.preventDefault();
+      focusAskBar();
+    },
   });
 
   return (
@@ -53,7 +58,8 @@ export function RootLayout() {
       </main>
       <AppFooter />
       <CommandPalette />
-      <AssistantPanel />
+      <AskBar />
+      <NotesDrawer />
       <Toaster />
     </div>
   );

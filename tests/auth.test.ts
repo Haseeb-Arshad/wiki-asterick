@@ -248,13 +248,54 @@ describe("library API", () => {
     assert.equal((await stranger.send("GET", "/api/library")).body.highlights.length, 0);
   });
 
+  test("stores AI notes per page and keeps them private", async () => {
+    const created = await client.send("POST", "/api/library/notes", {
+      wiki: "en",
+      articleTitle: "Moon",
+      question: "Why is the far side never visible?",
+      quote: "tidally locked",
+      answer: "Because the Moon is tidally locked [1].",
+      sources: [
+        { n: 1, kind: "article", title: "Moon", url: "https://en.wikipedia.org/wiki/Moon", site: "en.wikipedia.org" },
+        { n: 2, kind: "web", title: "Bad", url: "javascript:alert(1)" },
+      ],
+      mode: "deep",
+      web: false,
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.wiki, "en.wikipedia.org");
+    assert.equal(created.body.sources.length, 1, "non-http sources are dropped");
+
+    const general = await client.send("POST", "/api/library/notes", { wiki: "general", question: "What is a lunar standstill?", answer: "A point in the 18.6-year cycle." });
+    assert.equal(general.status, 201);
+    assert.equal(general.body.articleTitle, "");
+
+    assert.equal((await client.send("POST", "/api/library/notes", { wiki: "en", articleTitle: "Moon", question: "", answer: "x" })).status, 400);
+
+    const stranger = new Client();
+    await stranger.send("POST", "/api/auth/login", { email: "s@example.com", password: "stranger pass" });
+    await stranger.send("DELETE", `/api/library/notes/${created.body.id}`);
+    assert.equal((await stranger.send("GET", "/api/library")).body.notes.length, 0);
+
+    const notes = (await client.send("GET", "/api/library")).body.notes;
+    assert.equal(notes.length, 2, "a stranger can't delete someone else's note");
+
+    assert.equal((await client.send("DELETE", `/api/library/notes/${general.body.id}`)).status, 204);
+    assert.equal((await client.send("GET", "/api/library")).body.notes.length, 1);
+  });
+
   test("imports guest data and skips malformed entries", async () => {
     const response = await client.send("POST", "/api/library/import", {
       bookmarks: [{ wiki: "de", title: "Mond", description: "", thumbnail: null, createdAt: 1 }, { wiki: "evil.com", title: "x" }],
       history: [{ wiki: "en", title: "Sun", progress: 0.4, readAt: Date.now() - 1000 }],
       highlights: [{ wiki: "en", articleTitle: "Sun", text: "A star.", color: "pink" }],
+      notes: [
+        { id: "guest-note-0001", wiki: "en", articleTitle: "Sun", question: "How hot is it?", answer: "About 5,500 °C at the surface.", createdAt: 5 },
+        { wiki: "evil.com", articleTitle: "x", question: "q", answer: "a" },
+      ],
     });
     assert.equal(response.status, 200);
+    assert.equal(response.body.notes.filter((note: { id: string }) => note.id === "guest-note-0001").length, 1, "guest notes come along");
     assert.deepEqual(response.body.bookmarks.map((b: { title: string }) => b.title).sort(), ["Mond", "Moon"]);
     assert.equal(response.body.history.length, 2);
     assert.equal(response.body.highlights.length, 2);

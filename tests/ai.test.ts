@@ -51,3 +51,18 @@ describe("article context", () => {
     assert.match(text, /not included: .*Culture/);
   });
 });
+
+describe("earlier notes as context", () => {
+  test("keeps the last few, drops old citation numbers and malformed entries", async () => {
+    const { readPriorNotes } = await import("../server/ai/routes.ts");
+    const notes = readPriorNotes([
+      ...Array.from({ length: 7 }, (_, i) => ({ question: `Q${i}`, answer: `A${i} [1][2].` })),
+      { question: "No answer" },
+      null,
+    ]);
+    assert.equal(notes.length, 6);
+    assert.equal(notes[0].question, "Q1");
+    assert.equal(notes[5].answer, "A6.");
+    assert.equal(readPriorNotes("nope").length, 0);
+  });
+});

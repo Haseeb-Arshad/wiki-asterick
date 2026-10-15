@@ -35,11 +35,13 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 - Links are fetched safely: private and internal network addresses are refused, every redirect is re-checked, and pages are size- and time-limited.
 
 **Ask AI**
-- A side panel (a bottom sheet on phones) that answers questions about the article you're reading, or anything at all, without leaving the page.
-- Answers stream in with numbered citations; source cards link to the article and to live web results from Exa.
-- Auto mode uses Claude Haiku 5.5 for quick questions and GPT-6 Luna with high reasoning for "why / compare / analyze" questions; you can also pick Fast or Deep. Deep answers show a live summary of what the model is thinking about.
-- Web search runs automatically when no article is open or when you ask about recent events; it can also be forced on or off.
-- Select any passage and press Ask to have it explained in context. Type a question into search and Ask AI is offered first. Shortcut: `A`.
+- A floating ask bar at the bottom of every page. Ask about the article you're reading, or anything at all, by typing or by voice (the mic uses the browser's speech recognition). It tucks into a small pill while you scroll down. Shortcut: `A`.
+- While it works, a live card above the bar shows each step: reading the article, searching the web (with the sources popping in), a running summary of the model's thinking, then the answer as it's written.
+- The model and web search live in one compact menu in the bar. Auto uses Claude Haiku 5.5 for quick questions and GPT-6 Luna with high reasoning for "why / compare / analyze" questions. Web search runs automatically when no article is open or you ask about recent events, and can be forced on or off.
+- Every answer is saved as an **AI note** on the page it was asked from. On wide screens the answer opens in the left rail (Contents | AI notes); on phones, and on pages without an article, it opens in a left-hand panel. Notes show the question, the passage, the answer with numbered citations, and their sources, with Follow up, Copy and Delete.
+- Select a passage and press Ask to attach it to the bar, with one-tap prompts (Explain this, Say it more simply…). Passages you asked about get a dotted underline and a mark in the margin; click either to open the note.
+- When you come back to a page, its earlier questions and answers are sent along as context, so new answers build on what you already asked.
+- AI notes sync with your account (or stay in the browser as a guest) and are collected in Library → AI notes.
 
 **Your library**
 - Highlights in four colors with notes, repainted on the text whenever you return.
@@ -143,15 +145,16 @@ All routes are under `/api`. Writes require the header `x-wa-request: 1`.
 | GET | `/wiki/random?wiki=en` | A random article summary |
 | POST | `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/logout-all` | Session management |
 | GET / PATCH / DELETE | `/auth/me` | Current user, rename, delete account |
-| GET | `/library` | Bookmarks, highlights and history |
+| GET | `/library` | Bookmarks, highlights, history and AI notes |
 | PUT / DELETE | `/library/bookmarks` | Save / remove an article |
 | PUT / DELETE | `/library/history` | Record progress / clear history |
 | POST / PATCH / DELETE | `/library/highlights[/:id]` | Highlights and notes |
+| POST / DELETE | `/library/notes[/:id]` | Save / delete an AI note (question, passage, answer, sources) |
 | POST | `/library/import` | Merge a guest library after sign-in |
 | GET | `/web/article?url=<link>` | Any article page, extracted into the reader format |
 | GET | `/web/similar?url=<link>` | Similar pages (Exa) |
 | GET | `/ai/status` | Whether AI answers and web search are configured |
-| POST | `/ai/ask` | Streams an answer as newline-delimited JSON (`meta`, `status`, `sources`, `reasoning`, `delta`, `done`) |
+| POST | `/ai/ask` | Streams an answer as newline-delimited JSON (`meta`, `step`, `sources`, `reasoning`, `delta`, `done`). Takes the page's earlier notes as `notes` for context |
 
 `wiki` accepts `en`, `de.wikivoyage`, `ur.wikipedia.org` and similar.
 
@@ -166,7 +169,7 @@ server/
   db.ts            SQLite (node:sqlite) and migrations
   http.ts          Errors, rate limiting, CSRF check, LRU cache
   auth/            Password hashing, JWT and refresh tokens, auth routes
-  library.ts       Bookmarks, highlights, history
+  library.ts       Bookmarks, highlights, history, AI notes
   wiki/            Wikimedia API client, HTML parser/sanitizer, wiki routes
   web/             Safe page fetcher (SSRF guard), reader-mode extraction, web routes
   ai/              OpenRouter streaming, Exa search, article context, the /ai routes

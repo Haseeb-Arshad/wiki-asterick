@@ -1,17 +1,30 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
+import { createPortal } from "react-dom";
+import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
 import { FEATURED_LANGUAGES, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
-import { useHotkeys } from "../../lib/hooks";
-import { highlightsFor, useLibrary } from "../../lib/library";
+import { useHotkeys, useMediaQuery } from "../../lib/hooks";
+import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
-import { aiStatusQuery, openAssistant, setAssistantContext } from "../../lib/assistant";
+import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
+import { useBarSlot } from "../../lib/bar-slot";
 import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
-import { caretAt, clearPaintedHighlights, describeRange, findQuote, paintHighlights } from "../../lib/text-anchor";
+import {
+  caretAt,
+  clearAiPassages,
+  clearPaintedHighlights,
+  describeRange,
+  findQuote,
+  paintAiPassages,
+  paintHighlights,
+  revealQuote,
+  snapToWords,
+} from "../../lib/text-anchor";
 import { toast } from "../../lib/toast";
+import { NotesList } from "../ai/NotesList";
 import { AsteriskMark } from "../AsteriskIcon";
 import { Icon } from "../Icon";
 import { Lightbox } from "../Lightbox";
@@ -116,11 +129,30 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
 
   const closePanel = useCallback(() => setPanel(null), []);
 
-  // ---- the AI assistant answers about this article ---------------------------------
+  // ---- Ask AI: questions from the bar are about this article ----------------------------
   useEffect(() => {
-    setAssistantContext(webUrl ? { kind: "web", url: webUrl, title: article.title } : { kind: "wiki", wiki: article.wiki, title: article.title });
+    setAssistantContext({ kind: webUrl ? "web" : "wiki", wiki: article.wiki, title: article.title, url: webUrl ?? null });
     return () => setAssistantContext(null);
   }, [article.wiki, article.title, webUrl]);
+
+  const notes = useMemo(() => notesFor(library.snapshot, article.wiki, article.title), [library.snapshot, article]);
+  const { railTab } = useAsk();
+  const barSlot = useBarSlot();
+  const wide = useMediaQuery("(min-width: 1240px)");
+  const railVisible = wide && pastHeader && !atEnd;
+  const showNotesRail = railTab === "notes" && notes.length > 0;
+
+  // New answers open in the left rail while it's on screen (the drawer otherwise).
+  useEffect(() => {
+    setRailAvailable(railVisible);
+  }, [railVisible]);
+  useEffect(() => () => setRailAvailable(false), []);
+
+  const jumpToNote = useCallback((note: AiNote) => {
+    if (!revealQuote({ text: note.quote, prefix: note.quotePrefix, suffix: note.quoteSuffix, sectionId: note.sectionId })) {
+      toast("That passage isn't in the article any more.");
+    }
+  }, []);
 
   // ---- page title ---------------------------------------------------------------
   useEffect(() => {
@@ -244,6 +276,56 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   }, [highlights]);
 
   useEffect(() => clearPaintedHighlights, []);
+
+  // ---- passages asked about: a dotted underline, and a mark in the margin -----------------
+  const aiRanges = useRef(new Map<string, Range>());
+  const [aiMarks, setAiMarks] = useState<{ top: number; ids: string[]; question: string }[]>([]);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const found = new Map<string, Range>();
+    for (const note of notes) {
+      if (!note.quote) continue;
+      const quote = { text: note.quote, prefix: note.quotePrefix, suffix: note.quoteSuffix };
+      const section = note.sectionId ? document.getElementById(note.sectionId) : null;
+      const root = section && body.contains(section) ? section : body;
+      const range = findQuote(root, quote) ?? (root !== body ? findQuote(body, quote) : null);
+      if (range) found.set(note.id, range);
+    }
+    aiRanges.current = found;
+    paintAiPassages([...found.values()]);
+
+    const place = () => {
+      const origin = body.getBoundingClientRect().top;
+      const marks: { top: number; ids: string[]; question: string }[] = [];
+      // Newest first, so a passage asked about twice shows its latest question.
+      for (const note of notes) {
+        const range = found.get(note.id);
+        const line = range?.getClientRects()[0];
+        if (!line) continue;
+        const top = Math.round(line.top - origin + line.height / 2);
+        const near = marks.find((mark) => Math.abs(mark.top - top) < 22);
+        if (near) near.ids.push(note.id);
+        else marks.push({ top, ids: [note.id], question: note.question });
+      }
+      setAiMarks(marks);
+    };
+    place();
+    // Images and fonts loading move the text around.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(place);
+    });
+    observer.observe(body);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [notes]);
+
+  useEffect(() => clearAiPassages, []);
 
   // ---- text selection ------------------------------------------------------------------
   useEffect(() => {
@@ -372,20 +454,27 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
       return;
     }
 
-    // A click on painted text opens that highlight.
-    if (window.getSelection()?.isCollapsed !== false && ranges.current.size) {
+    // A click on painted text opens that highlight, or the AI note about it.
+    if (window.getSelection()?.isCollapsed !== false && (ranges.current.size || aiRanges.current.size)) {
       const caret = caretAt(event.clientX, event.clientY);
       if (!caret) return;
-      for (const [id, range] of ranges.current) {
-        try {
-          if (range.isPointInRange(caret.node, caret.offset)) {
-            setOpenHighlight({ id, editing: false });
-            return;
+      const hit = (map: Map<string, Range>) => {
+        for (const [id, range] of map) {
+          try {
+            if (range.isPointInRange(caret.node, caret.offset)) return id;
+          } catch {
+            // The caret node may sit outside the range's document tree.
           }
-        } catch {
-          // The caret node may sit outside the range's document tree.
         }
+        return null;
+      };
+      const highlightId = hit(ranges.current);
+      if (highlightId) {
+        setOpenHighlight({ id: highlightId, editing: false });
+        return;
       }
+      const noteId = hit(aiRanges.current);
+      if (noteId) revealNotes(noteId);
     }
   }
 
@@ -537,12 +626,6 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
               <Icon name="share" size={19} />
               <span className="label">Share</span>
             </button>
-            {aiEnabled && (
-              <button type="button" className="action-btn ask-btn" onClick={() => openAssistant()} title="Ask AI about this article (a)">
-                <Icon name="sparkle" size={18} />
-                <span className="label">Ask AI</span>
-              </button>
-            )}
           </div>
           <div className="action-group">
             {article.media.length > 0 && (
@@ -609,6 +692,25 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           </details>
         )}
 
+        {aiMarks.length > 0 && (
+          <div className="ai-marks">
+            {aiMarks.map((mark) => (
+              <button
+                key={mark.ids[0]}
+                type="button"
+                className="ai-mark"
+                style={{ top: mark.top }}
+                onClick={() => revealNotes(mark.ids[0])}
+                aria-label={`AI note: ${mark.question}`}
+                title={mark.ids.length > 1 ? `${mark.question} (+${mark.ids.length - 1} more)` : mark.question}
+              >
+                <Icon name="sparkle" size={13} />
+                {mark.ids.length > 1 && <span>{mark.ids.length}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div
           ref={bodyRef}
           className="prose"
@@ -625,11 +727,47 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         <ArticleEnd article={article} webUrl={webUrl} endRef={endRef} project={project} onLanguages={() => setPanel("languages")} />
       </div>
 
-      <nav className={`toc-rail ${pastHeader && !atEnd ? "is-visible" : ""}`} aria-label="Article contents">
-        <h2>Contents</h2>
-        <TocList outline={outline} activeId={activeId} highlightCounts={highlightColors} onSelect={jumpTo} />
-      </nav>
+      <aside className={`toc-rail ${railVisible ? "is-visible" : ""} ${showNotesRail ? "is-notes" : ""}`} aria-label={showNotesRail ? "AI notes" : "Article contents"}>
+        {notes.length > 0 ? (
+          <div className="rail-tabs" role="tablist" aria-label="Side panel">
+            <button type="button" role="tab" aria-selected={!showNotesRail} onClick={() => setRailTab("contents")}>
+              Contents
+            </button>
+            <button type="button" role="tab" aria-selected={showNotesRail} onClick={() => setRailTab("notes")}>
+              <Icon name="sparkle" size={13} />
+              AI notes
+              <span className="count">{notes.length}</span>
+            </button>
+          </div>
+        ) : (
+          <h2>Contents</h2>
+        )}
+        {showNotesRail ? (
+          <NotesList notes={notes} onJump={jumpToNote} onRemove={(note) => library.removeNote(note.id)} onRestore={library.addNote} />
+        ) : (
+          <TocList outline={outline} activeId={activeId} highlightCounts={highlightColors} onSelect={jumpTo} />
+        )}
+      </aside>
 
+      {aiEnabled && barSlot ? (
+        createPortal(
+          <>
+            <button
+              type="button"
+              className="ask-icon"
+              onClick={() => (railVisible ? setRailTab("contents") : setPanel("contents"))}
+              aria-label="Contents"
+              title="Contents (t)"
+            >
+              <Icon name="list" size={19} />
+            </button>
+            <button type="button" className="ask-icon" aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Remove from library" : "Save"} title="Save (s)">
+              <Icon name={saved ? "bookmarkFilled" : "bookmark"} size={19} />
+            </button>
+          </>,
+          barSlot
+        )
+      ) : (
       <div className={`reader-dock ${showDock ? "" : "is-hidden"}`} aria-hidden={!showDock}>
         <button type="button" className="icon-btn" onClick={() => setPanel("contents")} aria-label="Contents" title="Contents (t)" tabIndex={showDock ? 0 : -1}>
           <Icon name="list" size={19} />
@@ -643,11 +781,6 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           <Icon name="pen" size={19} />
           {highlights.length > 0 && <span className="badge">{highlights.length}</span>}
         </button>
-        {aiEnabled && (
-          <button type="button" className="icon-btn" onClick={() => openAssistant()} aria-label="Ask AI" title="Ask AI (a)" tabIndex={showDock ? 0 : -1}>
-            <Icon name="sparkle" size={19} />
-          </button>
-        )}
         <span className="divider" />
         <button type="button" className="icon-btn" aria-pressed={saved} onClick={toggleSave} aria-label={saved ? "Remove from library" : "Save"} title="Save (s)" tabIndex={showDock ? 0 : -1}>
           <Icon name={saved ? "bookmarkFilled" : "bookmark"} size={19} />
@@ -659,6 +792,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           <Icon name="arrowUp" size={19} />
         </button>
       </div>
+      )}
 
       {/* Floating UI */}
       {footnote && (
@@ -697,10 +831,15 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           onAsk={
             aiEnabled
               ? () => {
-                  const text = selection.toString().replace(/\s+/g, " ").trim().slice(0, 1500);
+                  const body = bodyRef.current;
+                  if (!body) return;
+                  const startElement = selection.startContainer instanceof Element ? selection.startContainer : selection.startContainer.parentElement;
+                  const section = startElement?.closest<HTMLElement>(".article-section") ?? body;
+                  const quote = describeRange(snapToWords(selection), section);
+                  const text = quote.text.trim().slice(0, 1500);
                   window.getSelection()?.removeAllRanges();
                   setSelection(null);
-                  openAssistant({ selection: text, question: "Explain this passage." });
+                  if (text) attachQuote({ text, prefix: quote.prefix, suffix: quote.suffix, sectionId: section === body ? "" : section.id });
                 }
               : undefined
           }

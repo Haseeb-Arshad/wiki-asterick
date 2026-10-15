@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import type {
+  AiNote,
+  AiNoteSource,
   ArticleRef,
   Bookmark,
   Highlight,
@@ -90,6 +92,56 @@ function readHighlight(body: Record<string, unknown>): Omit<Highlight, "createdA
   };
 }
 
+/** Notes asked outside an article belong to the "general" page. */
+function readNoteWiki(value: unknown): string {
+  return value === "general" ? "general" : readWiki(value);
+}
+
+function readSources(value: unknown): AiNoteSource[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).flatMap((item, index) => {
+    const source = (item ?? {}) as Record<string, unknown>;
+    try {
+      const url = new URL(String(source.url ?? ""));
+      if (url.protocol !== "https:" && url.protocol !== "http:") return [];
+      const favicon = typeof source.favicon === "string" && source.favicon.startsWith("https://") ? source.favicon.slice(0, 500) : null;
+      return [
+        {
+          n: Number(source.n) || index + 1,
+          kind: source.kind === "article" ? "article" : "web",
+          title: readOptionalString(source.title, 300) || url.hostname,
+          url: url.toString().slice(0, 2000),
+          site: readOptionalString(source.site, 120) || url.hostname,
+          date: typeof source.date === "string" ? source.date.slice(0, 40) : null,
+          favicon,
+        } satisfies AiNoteSource,
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+
+function readNote(body: Record<string, unknown>): Omit<AiNote, "createdAt"> {
+  const wiki = readNoteWiki(body.wiki);
+  return {
+    id: typeof body.id === "string" && /^[\w-]{8,64}$/.test(body.id) ? body.id : randomUUID(),
+    wiki,
+    articleTitle: wiki === "general" ? "" : readString(body.articleTitle, "Article title", { max: 300 }),
+    url: wiki === "general" ? null : readUrl(body.url, wiki),
+    question: readString(body.question, "Question", { max: 2000 }),
+    quote: readOptionalString(body.quote, 1500),
+    quotePrefix: readOptionalString(body.quotePrefix, 64),
+    quoteSuffix: readOptionalString(body.quoteSuffix, 64),
+    sectionId: readOptionalString(body.sectionId, 300),
+    answer: readString(body.answer, "Answer", { max: 20000 }),
+    sources: readSources(body.sources),
+    model: readOptionalString(body.model, 120),
+    mode: body.mode === "deep" ? "deep" : "quick",
+    web: body.web === true,
+  };
+}
+
 function readProgress(value: unknown): number {
   const progress = Number(value);
   return Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
@@ -127,6 +179,48 @@ interface HighlightRow {
   created_at: number;
   updated_at: number;
 }
+
+interface NoteRow {
+  id: string;
+  wiki: string;
+  article_title: string;
+  url: string | null;
+  question: string;
+  quote: string;
+  quote_prefix: string;
+  quote_suffix: string;
+  section_id: string;
+  answer: string;
+  sources: string;
+  model: string;
+  mode: "quick" | "deep";
+  web: number;
+  created_at: number;
+}
+
+const toNote = (row: NoteRow): AiNote => ({
+  id: row.id,
+  wiki: row.wiki,
+  articleTitle: row.article_title,
+  url: row.url,
+  question: row.question,
+  quote: row.quote,
+  quotePrefix: row.quote_prefix,
+  quoteSuffix: row.quote_suffix,
+  sectionId: row.section_id,
+  answer: row.answer,
+  sources: (() => {
+    try {
+      return JSON.parse(row.sources) as AiNoteSource[];
+    } catch {
+      return [];
+    }
+  })(),
+  model: row.model,
+  mode: row.mode,
+  web: Boolean(row.web),
+  createdAt: row.created_at,
+});
 
 const toBookmark = (row: BookmarkRow): Bookmark => ({
   wiki: row.wiki,
@@ -167,6 +261,14 @@ const toHighlight = (row: HighlightRow): Highlight => ({
 const listBookmarks = db.prepare(`SELECT * FROM bookmarks WHERE user_id = ? ORDER BY created_at DESC`);
 const listHistory = db.prepare(`SELECT * FROM history WHERE user_id = ? ORDER BY read_at DESC LIMIT ${HISTORY_LIMIT}`);
 const listHighlights = db.prepare(`SELECT * FROM highlights WHERE user_id = ? ORDER BY created_at DESC`);
+const listNotes = db.prepare(`SELECT * FROM ai_notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 500`);
+const insertNote = db.prepare(`
+  INSERT INTO ai_notes (id, user_id, wiki, article_title, url, question, quote, quote_prefix, quote_suffix, section_id, answer, sources, model, mode, web, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT (id) DO NOTHING
+`);
+const getNote = db.prepare(`SELECT * FROM ai_notes WHERE id = ? AND user_id = ?`);
+const deleteNote = db.prepare(`DELETE FROM ai_notes WHERE id = ? AND user_id = ?`);
 
 const upsertBookmark = db.prepare(`
   INSERT INTO bookmarks (user_id, wiki, title, description, thumbnail, created_at, url)
@@ -215,7 +317,29 @@ function snapshot(userId: string): LibrarySnapshot {
     bookmarks: (listBookmarks.all(userId) as unknown as BookmarkRow[]).map(toBookmark),
     highlights: (listHighlights.all(userId) as unknown as HighlightRow[]).map(toHighlight),
     history: (listHistory.all(userId) as unknown as HistoryRow[]).map(toHistory),
+    notes: (listNotes.all(userId) as unknown as NoteRow[]).map(toNote),
   };
+}
+
+function saveNote(userId: string, note: Omit<AiNote, "createdAt">, createdAt = Date.now()) {
+  insertNote.run(
+    note.id,
+    userId,
+    note.wiki,
+    note.articleTitle,
+    note.url ?? null,
+    note.question,
+    note.quote,
+    note.quotePrefix,
+    note.quoteSuffix,
+    note.sectionId,
+    note.answer,
+    JSON.stringify(note.sources),
+    note.model,
+    note.mode,
+    note.web ? 1 : 0,
+    createdAt
+  );
 }
 
 function saveHighlight(userId: string, highlight: Omit<Highlight, "createdAt" | "updatedAt">, createdAt = Date.now()) {
@@ -332,6 +456,20 @@ libraryRouter.delete("/highlights/:id", (req, res) => {
   res.status(204).end();
 });
 
+libraryRouter.post("/notes", (req, res) => {
+  const userId = currentUserId(req);
+  const note = readNote(asRecord(req.body));
+  saveNote(userId, note);
+  const row = getNote.get(note.id, userId) as unknown as NoteRow | undefined;
+  if (!row) throw new HttpError(409, "That note id is already in use.");
+  res.status(201).json(toNote(row));
+});
+
+libraryRouter.delete("/notes/:id", (req, res) => {
+  deleteNote.run(req.params.id, currentUserId(req));
+  res.status(204).end();
+});
+
 /** Merges what a guest saved in this browser into their account after sign-in. */
 libraryRouter.post("/import", (req, res) => {
   const userId = currentUserId(req);
@@ -362,6 +500,14 @@ libraryRouter.post("/import", (req, res) => {
           readTimestamp(item.readAt),
       ref.url ?? null
         );
+      } catch {
+        // skip malformed entries
+      }
+    }
+
+    for (const item of asRecords(body.notes)) {
+      try {
+        saveNote(userId, readNote(item), readTimestamp(item.createdAt));
       } catch {
         // skip malformed entries
       }

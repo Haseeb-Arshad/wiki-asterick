@@ -1,6 +1,7 @@
 import { queryOptions, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 import type {
+  AiNote,
   ArticleRef,
   Bookmark,
   Highlight,
@@ -13,8 +14,9 @@ import { api } from "./api";
 import { createPersistedStore } from "./store";
 import { toast } from "./toast";
 
-const EMPTY: LibrarySnapshot = { bookmarks: [], highlights: [], history: [] };
+const EMPTY: LibrarySnapshot = { bookmarks: [], highlights: [], history: [], notes: [] };
 const GUEST_HISTORY_LIMIT = 100;
+const GUEST_NOTES_LIMIT = 200;
 
 // ---- guest storage (this browser only) -------------------------------------
 
@@ -58,8 +60,12 @@ const guestLibrary = createPersistedStore<LibrarySnapshot>("wa-library", EMPTY, 
     bookmarks: Array.isArray(value.bookmarks) ? value.bookmarks : [],
     highlights: Array.isArray(value.highlights) ? value.highlights : [],
     history: Array.isArray(value.history) ? value.history : [],
+    notes: Array.isArray(value.notes) ? value.notes : [],
   };
 });
+
+const guestCount = (library: LibrarySnapshot) =>
+  library.bookmarks.length + library.highlights.length + library.history.length + library.notes.length;
 
 const legacy = typeof window !== "undefined" ? migrateLegacyHighlights() : [];
 if (legacy.length) guestLibrary.set((library) => ({ ...library, highlights: [...legacy, ...library.highlights] }));
@@ -79,8 +85,7 @@ let importInFlight: Promise<number> | null = null;
 export function importGuestLibrary(queryClient: QueryClient, userId: string): Promise<number> {
   importInFlight ??= (async () => {
     const guest = guestLibrary.get();
-    const count = guest.bookmarks.length + guest.highlights.length + guest.history.length;
-    if (count === 0) {
+    if (guestCount(guest) === 0) {
       await queryClient.prefetchQuery(libraryQuery(userId));
       return 0;
     }
@@ -92,8 +97,9 @@ export function importGuestLibrary(queryClient: QueryClient, userId: string): Pr
       bookmarks: current.bookmarks.filter((item) => !guest.bookmarks.includes(item)),
       highlights: current.highlights.filter((item) => !guest.highlights.includes(item)),
       history: current.history.filter((item) => !guest.history.includes(item)),
+      notes: current.notes.filter((item) => !guest.notes.includes(item)),
     }));
-    return guest.bookmarks.length + guest.highlights.length;
+    return guest.bookmarks.length + guest.highlights.length + guest.notes.length;
   })().finally(() => {
     importInFlight = null;
   });
@@ -108,7 +114,7 @@ export function importGuestLibrary(queryClient: QueryClient, userId: string): Pr
 export function useGuestLibrarySync(user: User | null) {
   const queryClient = useQueryClient();
   const guest = guestLibrary.use();
-  const pending = guest.bookmarks.length + guest.highlights.length + guest.history.length > 0;
+  const pending = guestCount(guest) > 0;
 
   useEffect(() => {
     if (!user || !pending) return;
@@ -267,6 +273,26 @@ export function useLibrary(user: User | null) {
     [update]
   );
 
+  const addNote = useCallback(
+    (note: AiNote) => {
+      update(
+        (library) => ({ ...library, notes: [note, ...library.notes.filter((item) => item.id !== note.id)].slice(0, user ? 500 : GUEST_NOTES_LIMIT) }),
+        () => api("/api/library/notes", { method: "POST", body: note })
+      );
+    },
+    [update, user]
+  );
+
+  const removeNote = useCallback(
+    (id: string) => {
+      update(
+        (library) => ({ ...library, notes: library.notes.filter((item) => item.id !== id) }),
+        () => api(`/api/library/notes/${encodeURIComponent(id)}`, { method: "DELETE" })
+      );
+    },
+    [update]
+  );
+
   return useMemo(
     () => ({
       snapshot,
@@ -280,8 +306,25 @@ export function useLibrary(user: User | null) {
       addHighlight,
       updateHighlight,
       removeHighlight,
+      addNote,
+      removeNote,
     }),
-    [snapshot, user, remote.isPending, isBookmarked, setBookmark, toggleBookmark, recordVisit, removeHistory, clearHistory, addHighlight, updateHighlight, removeHighlight]
+    [
+      snapshot,
+      user,
+      remote.isPending,
+      isBookmarked,
+      setBookmark,
+      toggleBookmark,
+      recordVisit,
+      removeHistory,
+      clearHistory,
+      addHighlight,
+      updateHighlight,
+      removeHighlight,
+      addNote,
+      removeNote,
+    ]
   );
 }
 
@@ -289,4 +332,9 @@ export type Library = ReturnType<typeof useLibrary>;
 
 export function highlightsFor(snapshot: LibrarySnapshot, wiki: string, title: string): Highlight[] {
   return snapshot.highlights.filter((item) => item.wiki === wiki && item.articleTitle === title);
+}
+
+/** AI notes for one page, newest first. `wiki: "general"` holds questions asked away from any article. */
+export function notesFor(snapshot: LibrarySnapshot, wiki: string, title: string): AiNote[] {
+  return snapshot.notes.filter((item) => item.wiki === wiki && (wiki === "general" || item.articleTitle === title));
 }

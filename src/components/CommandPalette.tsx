@@ -4,7 +4,7 @@ import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from ".
 import { useSession } from "../lib/auth";
 import { useLibrary } from "../lib/library";
 import { articleLink } from "../lib/links";
-import { openAssistant } from "../lib/assistant";
+import { ask } from "../lib/assistant";
 import { recentSearchStore, rememberSearch, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
 import { setPaletteOpen, useArticleSearch, usePaletteOpen, type SearchOption } from "../lib/search";
@@ -105,7 +105,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       return;
     }
     if (option.kind === "ask") {
-      openAssistant({ question: option.title });
+      void ask(option.title);
       return;
     }
     if (option.kind === "link" && option.url) {

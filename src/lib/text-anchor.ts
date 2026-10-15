@@ -157,3 +157,55 @@ export function caretAt(x: number, y: number): { node: Node; offset: number } | 
   }
   return null;
 }
+
+const WORD = /[\p{L}\p{N}'’-]/u;
+
+/** Widens a selection that starts or ends mid-word to the whole words. */
+export function snapToWords(range: Range): Range {
+  const snapped = range.cloneRange();
+  const { startContainer, endContainer } = snapped;
+  if (startContainer instanceof Text) {
+    let offset = snapped.startOffset;
+    while (offset > 0 && WORD.test(startContainer.data[offset - 1])) offset--;
+    snapped.setStart(startContainer, offset);
+  }
+  if (endContainer instanceof Text) {
+    let offset = snapped.endOffset;
+    while (offset < endContainer.data.length && WORD.test(endContainer.data[offset])) offset++;
+    snapped.setEnd(endContainer, offset);
+  }
+  return snapped;
+}
+
+/** Passages the reader asked the AI about get a quieter mark of their own. */
+export function paintAiPassages(ranges: Range[]) {
+  if (!supportsHighlights) return;
+  if (!ranges.length) {
+    CSS.highlights.delete("wa-ai");
+    return;
+  }
+  const highlight = new Highlight(...ranges);
+  // The reader's own highlight colors win where the two overlap.
+  highlight.priority = -1;
+  CSS.highlights.set("wa-ai", highlight);
+}
+
+export function clearAiPassages() {
+  if (supportsHighlights) CSS.highlights.delete("wa-ai");
+}
+
+/** Finds a quote in the open article, scrolls to it and flashes it. */
+export function revealQuote(quote: TextQuote & { sectionId?: string }): boolean {
+  const body = document.querySelector<HTMLElement>(".reader .prose");
+  if (!body || !quote.text) return false;
+  const section = quote.sectionId ? document.getElementById(quote.sectionId) : null;
+  const root = section && body.contains(section) ? section : body;
+  const range = findQuote(root, quote) ?? (root !== body ? findQuote(body, quote) : null);
+  if (!range) return false;
+  range.startContainer.parentElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (supportsHighlights) {
+    CSS.highlights.set("wa-flash", new Highlight(range));
+    window.setTimeout(() => CSS.highlights.delete("wa-flash"), 1800);
+  }
+  return true;
+}

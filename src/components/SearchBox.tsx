@@ -3,7 +3,7 @@ import { useId, useRef, useState } from "react";
 import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from "../../shared/wiki";
 import { useOutsidePress } from "../lib/hooks";
 import { articleLink } from "../lib/links";
-import { openAssistant } from "../lib/assistant";
+import { ask } from "../lib/assistant";
 import { rememberSearch } from "../lib/preferences";
 import { modKey, useArticleSearch, type SearchOption } from "../lib/search";
 import { Icon } from "./Icon";
@@ -41,7 +41,7 @@ export function SearchBox({
     setOpen(false);
     if (option.kind === "ask") {
       setQuery("");
-      openAssistant({ question: option.title });
+      void ask(option.title);
       return;
     }
     if (option.kind === "link" && option.url) {

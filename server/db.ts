@@ -80,6 +80,28 @@ const MIGRATIONS = [
   ALTER TABLE history ADD COLUMN url TEXT;
   ALTER TABLE highlights ADD COLUMN url TEXT;
   `,
+  // 3: questions asked of the AI, with their answers and sources.
+  `
+  CREATE TABLE ai_notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    wiki TEXT NOT NULL,
+    article_title TEXT NOT NULL,
+    url TEXT,
+    question TEXT NOT NULL,
+    quote TEXT NOT NULL DEFAULT '',
+    quote_prefix TEXT NOT NULL DEFAULT '',
+    quote_suffix TEXT NOT NULL DEFAULT '',
+    section_id TEXT NOT NULL DEFAULT '',
+    answer TEXT NOT NULL,
+    sources TEXT NOT NULL DEFAULT '[]',
+    model TEXT NOT NULL DEFAULT '',
+    mode TEXT NOT NULL DEFAULT 'quick',
+    web INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX ai_notes_article ON ai_notes(user_id, wiki, article_title);
+  `,
 ];
 
 function migrate() {

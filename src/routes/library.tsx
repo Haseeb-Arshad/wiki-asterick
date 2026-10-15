@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LibraryPage, type LibraryTab } from "../components/LibraryPage";
 
-const TABS: LibraryTab[] = ["saved", "highlights", "history"];
+const TABS: LibraryTab[] = ["saved", "highlights", "notes", "history"];
 
 export const Route = createFileRoute("/library")({
   validateSearch: (search: Record<string, unknown>): { tab?: LibraryTab } => ({

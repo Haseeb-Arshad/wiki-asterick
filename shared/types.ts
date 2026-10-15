@@ -190,10 +190,42 @@ export interface Highlight {
   updatedAt: number;
 }
 
+export interface AiNoteSource {
+  n: number;
+  kind: "article" | "web";
+  title: string;
+  url: string;
+  site: string;
+  date: string | null;
+  favicon: string | null;
+}
+
+/** A question asked of the AI and its answer, kept with the page it was asked on. */
+export interface AiNote {
+  id: string;
+  /** Page the question was asked on; "general" when it was asked outside an article. */
+  wiki: string;
+  articleTitle: string;
+  url?: string | null;
+  question: string;
+  /** The highlighted passage the question was about, if any. */
+  quote: string;
+  quotePrefix: string;
+  quoteSuffix: string;
+  sectionId: string;
+  answer: string;
+  sources: AiNoteSource[];
+  model: string;
+  mode: "quick" | "deep";
+  web: boolean;
+  createdAt: number;
+}
+
 export interface LibrarySnapshot {
   bookmarks: Bookmark[];
   highlights: Highlight[];
   history: HistoryEntry[];
+  notes: AiNote[];
 }
 
 export interface ApiError {

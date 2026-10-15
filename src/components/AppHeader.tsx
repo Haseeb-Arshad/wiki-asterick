@@ -1,6 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { aiStatusQuery, toggleAssistant, useAssistant } from "../lib/assistant";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuthActions, useSession } from "../lib/auth";
 import { useHideOnScroll, useOutsidePress } from "../lib/hooks";
@@ -42,7 +40,6 @@ export function AppHeader() {
         </div>
 
         <div className="nav-cluster">
-          <AskButton />
           <button
             type="button"
             className="nav-circle"
@@ -56,25 +53,6 @@ export function AppHeader() {
         </div>
       </div>
     </header>
-  );
-}
-
-/** Opens the AI assistant (about the open article, or anything with web search). */
-function AskButton() {
-  const status = useQuery(aiStatusQuery);
-  const { open } = useAssistant();
-  if (!status.data?.enabled) return null;
-  return (
-    <button
-      type="button"
-      className={`nav-pill ask-pill ${open ? "is-active" : ""}`}
-      onClick={toggleAssistant}
-      aria-pressed={open}
-      aria-label="Ask AI (A)"
-    >
-      <Icon name="sparkle" size={16} />
-      <span className="ask-label">Ask AI</span>
-    </button>
   );
 }
 

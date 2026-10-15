@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { webArticleQuery } from "../../lib/queries";
-import { openAssistant } from "../../lib/assistant";
+import { ask } from "../../lib/assistant";
 import { setPaletteOpen } from "../../lib/search";
 import { AsteriskMark } from "../AsteriskIcon";
 import { Icon } from "../Icon";
@@ -39,7 +39,7 @@ export function WebReaderPage({ url }: { url: string }) {
           <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer nofollow">
             Open the original <Icon name="external" size={15} />
           </a>
-          <button type="button" className="btn btn-secondary" onClick={() => openAssistant({ question: `What is this page about? ${url}` })}>
+          <button type="button" className="btn btn-secondary" onClick={() => void ask(`What is this page about? ${url}`)}>
             <Icon name="sparkle" size={16} /> Ask AI about it
           </button>
           <Link to="/" className="btn btn-ghost">

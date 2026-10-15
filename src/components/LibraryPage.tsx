@@ -1,25 +1,27 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import type { Highlight } from "../../shared/types";
+import type { AiNote, Highlight } from "../../shared/types";
 import { useSession } from "../lib/auth";
 import { formatDate, formatRelative, pluralize } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { refLink } from "../lib/links";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
+import { NotesList } from "./ai/NotesList";
 import { Icon } from "./Icon";
 
-export type LibraryTab = "saved" | "highlights" | "history";
+export type LibraryTab = "saved" | "highlights" | "notes" | "history";
 
 export function LibraryPage({ tab }: { tab: LibraryTab }) {
   const { user } = useSession();
   const library = useLibrary(user);
   const navigate = useNavigate();
-  const { bookmarks, highlights, history } = library.snapshot;
+  const { bookmarks, highlights, history, notes } = library.snapshot;
 
   const tabs: { id: LibraryTab; label: string; count: number }[] = [
     { id: "saved", label: "Saved", count: bookmarks.length },
     { id: "highlights", label: "Highlights", count: highlights.length },
+    { id: "notes", label: "AI notes", count: notes.length },
     { id: "history", label: "History", count: history.length },
   ];
 
@@ -78,6 +80,8 @@ export function LibraryPage({ tab }: { tab: LibraryTab }) {
         <SavedList library={library} />
       ) : tab === "highlights" ? (
         <HighlightList highlights={highlights} onRemove={library.removeHighlight} />
+      ) : tab === "notes" ? (
+        <AiNoteGroups notes={notes} onRemove={(note) => library.removeNote(note.id)} onRestore={library.addNote} />
       ) : (
         <HistoryList
           library={library}
@@ -219,6 +223,44 @@ function HighlightList({ highlights, onRemove }: { highlights: Highlight[]; onRe
               </footer>
             </article>
           ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** AI notes grouped by the page they were asked on; general questions last. */
+function AiNoteGroups({ notes, onRemove, onRestore }: { notes: AiNote[]; onRemove: (note: AiNote) => void; onRestore: (note: AiNote) => void }) {
+  const groups = useMemo(() => {
+    const map = new Map<string, { wiki: string; title: string; url: string | null; items: AiNote[] }>();
+    for (const note of notes) {
+      const key = note.wiki === "general" ? "general" : `${note.wiki}:${note.articleTitle}`;
+      const group = map.get(key) ?? { wiki: note.wiki, title: note.articleTitle, url: note.url ?? null, items: [] };
+      group.items.push(note);
+      map.set(key, group);
+    }
+    return [...map.values()].sort((a, b) => Number(a.wiki === "general") - Number(b.wiki === "general"));
+  }, [notes]);
+
+  if (!groups.length) {
+    return (
+      <Empty
+        icon="sparkle"
+        title="No AI notes yet"
+        body="Ask a question from the bar at the bottom of any article. Each answer is saved here and with the article, ready for when you come back."
+      />
+    );
+  }
+
+  return (
+    <div className="highlight-groups">
+      {groups.map((group) => (
+        <section key={`${group.wiki}:${group.title}`} className="highlight-group">
+          <h3>
+            {group.wiki === "general" ? <span>General questions</span> : <Link {...refLink(group)}>{group.title}</Link>}
+            <span className="section-meta">{pluralize(group.items.length, "question")}</span>
+          </h3>
+          <NotesList notes={group.items} onRemove={onRemove} onRestore={onRestore} canFollowUp={false} />
         </section>
       ))}
     </div>
