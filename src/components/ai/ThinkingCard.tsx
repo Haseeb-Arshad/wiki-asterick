@@ -187,7 +187,7 @@ export function ThinkingCard({ run }: { run: AskRun }) {
             followAnswer.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24;
           }}
         >
-          <Markdown text={run.answer} sources={run.sources} />
+          <Markdown text={run.answer} sources={run.sources} page={run.context ?? undefined} />
           {run.phase === "running" && <span className="caret" aria-hidden="true" />}
         </div>
       )}

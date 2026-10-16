@@ -1,15 +1,22 @@
 import { config } from "../config.js";
 import { HttpError } from "../http.js";
 
+/** A piece of a message. A `cache_control` mark asks the provider to reuse everything up to here next time. */
+export interface ContentPart {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+}
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ContentPart[];
 }
 
 export type StreamEvent =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "usage"; promptTokens: number; completionTokens: number; cost: number | null };
+  | { type: "usage"; promptTokens: number; completionTokens: number; cachedTokens: number; cost: number | null };
 
 /**
  * Streams a chat completion from OpenRouter (OpenAI-compatible API), yielding
@@ -74,7 +81,7 @@ export async function* streamChat(options: {
       let json: {
         error?: { message?: string };
         choices?: { delta?: { content?: string | null; reasoning?: string | null } }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
+        usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; prompt_tokens_details?: { cached_tokens?: number } };
       };
       try {
         json = JSON.parse(data);
@@ -91,6 +98,7 @@ export async function* streamChat(options: {
           type: "usage",
           promptTokens: json.usage.prompt_tokens ?? 0,
           completionTokens: json.usage.completion_tokens ?? 0,
+          cachedTokens: json.usage.prompt_tokens_details?.cached_tokens ?? 0,
           cost: json.usage.cost ?? null,
         };
       }

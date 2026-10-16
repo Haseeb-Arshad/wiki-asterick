@@ -1,11 +1,21 @@
+import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 import type { AssistantSource } from "../lib/assistant";
+import { refLink } from "../lib/links";
 
 /*
  * A small Markdown renderer for AI answers. It builds React elements (never
  * raw HTML), so model output can't inject markup, and it turns citation
- * markers like [2] into links to the matching source.
+ * markers like [2] into links to the matching source. A citation of a
+ * section of the page the answer is about jumps to that section.
  */
+
+/** The page an answer was written about, so citations of its sections can link into it. */
+export interface PageRef {
+  wiki: string;
+  title: string;
+  url?: string | null;
+}
 
 type Block =
   | { type: "paragraph"; text: string }
@@ -81,7 +91,7 @@ function parseBlocks(markdown: string): Block[] {
 
 const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]]+\]\((https?:\/\/[^\s)]+)\))|((?:\[\d{1,2}(?:\s*,\s*\d{1,2})*\])+)/g;
 
-function renderInline(text: string, sources: AssistantSource[], keyPrefix: string): ReactNode[] {
+function renderInline(text: string, sources: AssistantSource[], keyPrefix: string, page?: PageRef): ReactNode[] {
   const nodes: ReactNode[] = [];
   let last = 0;
   let index = 0;
@@ -93,8 +103,8 @@ function renderInline(text: string, sources: AssistantSource[], keyPrefix: strin
     const [token, code, bold, italic, link, linkUrl, citations] = match;
 
     if (code) nodes.push(<code key={key}>{code.slice(1, -1)}</code>);
-    else if (bold) nodes.push(<strong key={key}>{renderInline(bold.slice(2, -2), sources, key)}</strong>);
-    else if (italic) nodes.push(<em key={key}>{renderInline(italic.slice(1, -1), sources, key)}</em>);
+    else if (bold) nodes.push(<strong key={key}>{renderInline(bold.slice(2, -2), sources, key, page)}</strong>);
+    else if (italic) nodes.push(<em key={key}>{renderInline(italic.slice(1, -1), sources, key, page)}</em>);
     else if (link && linkUrl) {
       const label = link.slice(1, link.indexOf("]("));
       nodes.push(
@@ -108,6 +118,13 @@ function renderInline(text: string, sources: AssistantSource[], keyPrefix: strin
         <span key={key} className="cites">
           {numbers.map((n) => {
             const source = sources.find((item) => item.n === n);
+            if (source?.sectionId && page) {
+              return (
+                <Link key={n} {...refLink(page, source.sectionId)} className="cite" title={`${source.title}. Jump to this section`}>
+                  {n}
+                </Link>
+              );
+            }
             return source ? (
               <a key={n} className="cite" href={source.url} target="_blank" rel="noopener noreferrer nofollow" title={`${source.title} — ${source.site}`}>
                 {n}
@@ -127,7 +144,7 @@ function renderInline(text: string, sources: AssistantSource[], keyPrefix: strin
   return nodes;
 }
 
-export function Markdown({ text, sources = [] }: { text: string; sources?: AssistantSource[] }) {
+export function Markdown({ text, sources = [], page }: { text: string; sources?: AssistantSource[]; page?: PageRef }) {
   const blocks = parseBlocks(text);
   return (
     <>
@@ -135,25 +152,25 @@ export function Markdown({ text, sources = [] }: { text: string; sources?: Assis
         const key = `b${index}`;
         switch (block.type) {
           case "paragraph":
-            return <p key={key}>{renderInline(block.text, sources, key)}</p>;
+            return <p key={key}>{renderInline(block.text, sources, key, page)}</p>;
           case "heading":
             return block.level <= 2 ? (
-              <h3 key={key}>{renderInline(block.text, sources, key)}</h3>
+              <h3 key={key}>{renderInline(block.text, sources, key, page)}</h3>
             ) : (
-              <h4 key={key}>{renderInline(block.text, sources, key)}</h4>
+              <h4 key={key}>{renderInline(block.text, sources, key, page)}</h4>
             );
           case "list": {
             const Tag = block.ordered ? "ol" : "ul";
             return (
               <Tag key={key}>
                 {block.items.map((item, itemIndex) => (
-                  <li key={itemIndex}>{renderInline(item, sources, `${key}-${itemIndex}`)}</li>
+                  <li key={itemIndex}>{renderInline(item, sources, `${key}-${itemIndex}`, page)}</li>
                 ))}
               </Tag>
             );
           }
           case "quote":
-            return <blockquote key={key}>{renderInline(block.text, sources, key)}</blockquote>;
+            return <blockquote key={key}>{renderInline(block.text, sources, key, page)}</blockquote>;
           case "code":
             return (
               <pre key={key}>

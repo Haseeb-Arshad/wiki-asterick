@@ -99,12 +99,13 @@ function readNoteWiki(value: unknown): string {
 
 function readSources(value: unknown): AiNoteSource[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 12).flatMap((item, index) => {
+  return value.slice(0, 16).flatMap((item, index) => {
     const source = (item ?? {}) as Record<string, unknown>;
     try {
       const url = new URL(String(source.url ?? ""));
       if (url.protocol !== "https:" && url.protocol !== "http:") return [];
       const favicon = typeof source.favicon === "string" && source.favicon.startsWith("https://") ? source.favicon.slice(0, 500) : null;
+      const sectionId = readOptionalString(source.sectionId, 200);
       return [
         {
           n: Number(source.n) || index + 1,
@@ -114,6 +115,7 @@ function readSources(value: unknown): AiNoteSource[] {
           site: readOptionalString(source.site, 120) || url.hostname,
           date: typeof source.date === "string" ? source.date.slice(0, 40) : null,
           favicon,
+          ...(sectionId ? { sectionId } : {}),
         } satisfies AiNoteSource,
       ];
     } catch {
