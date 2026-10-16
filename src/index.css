@@ -1966,11 +1966,89 @@ a:hover > .read-more svg,
 .reader {
   position: relative;
   padding-bottom: 96px;
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .column {
   width: min(100% - 2 * var(--gutter), var(--measure));
   margin-inline: auto;
+}
+
+/* "Aa" opens the reading settings; the glyph is set in the reading typeface. */
+.action-aa span {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.reading-settings {
+  display: grid;
+  gap: 22px;
+  padding: 4px 2px 8px;
+}
+
+.setting-row h3 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.setting-segmented {
+  margin: 0;
+}
+
+.setting-segmented button {
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.stepper button {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.stepper button:disabled {
+  color: var(--faint);
+}
+
+.stepper output {
+  color: var(--ink-soft);
+  font-size: 14px;
+  text-align: center;
+}
+
+.stepper-aa {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.stepper-aa.small {
+  font-size: 15px;
+}
+
+.reading-settings-foot {
+  padding-top: 4px;
 }
 
 .article-header {
@@ -2209,9 +2287,10 @@ a:hover > .read-more svg,
 .prose {
   margin-top: 36px;
   color: var(--ink);
-  font-family: var(--font-serif);
-  font-size: 18px;
-  line-height: 1.62;
+  /* Set from the reading settings on .reader; these are the defaults. */
+  font-family: var(--reader-face, var(--font-serif));
+  font-size: calc(18px * var(--reader-scale, 1));
+  line-height: var(--reader-leading, 1.62);
   letter-spacing: 0;
   overflow-wrap: break-word;
   font-feature-settings: "kern", "liga", "onum";
@@ -2221,14 +2300,14 @@ a:hover > .read-more svg,
 .prose[lang="zh"],
 .prose[lang="ko"] {
   font-family: var(--font-sans);
-  font-size: 17px;
+  font-size: calc(17px * var(--reader-scale, 1));
   line-height: 1.85;
   font-feature-settings: normal;
 }
 
 .prose[dir="rtl"] {
   font-family: var(--font-sans);
-  font-size: 18.5px;
+  font-size: calc(18.5px * var(--reader-scale, 1));
   line-height: 1.9;
 }
 
@@ -2237,7 +2316,7 @@ a:hover > .read-more svg,
 }
 
 .prose p {
-  margin: 0 0 1.25em;
+  margin: 0 0 var(--reader-para, 1.25em);
 }
 
 .prose h2,
@@ -4198,8 +4277,8 @@ a:hover > .read-more svg,
   }
 
   .prose {
-    font-size: 17.5px;
-    line-height: 1.6;
+    font-size: calc(17.5px * var(--reader-scale, 1));
+    line-height: var(--reader-leading, 1.6);
   }
 
   .action-bar .label {

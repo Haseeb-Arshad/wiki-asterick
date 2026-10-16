@@ -11,6 +11,7 @@ import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
 import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
 import { useBarSlot } from "../../lib/bar-slot";
+import { readingStore, readingStyle } from "../../lib/reading";
 import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
 import {
   caretAt,
@@ -31,10 +32,11 @@ import { Lightbox } from "../Lightbox";
 import { downloadText, articleToMarkdown, notesToMarkdown } from "./exporters";
 import { flattenSections, scrollToSection, type OutlineEntry } from "./outline";
 import { ContentsSheet, LanguagesSheet, MediaSheet, NotesSheet, ReferencesSheet, ShortcutsDialog, TocList } from "./ReaderPanels";
+import { ReadingSettings } from "./ReadingSettings";
 import { FootnotePopover, HighlightPopover, LinkPreview, SelectionToolbar } from "./ReaderPopovers";
 import { useReadAloud } from "./useReadAloud";
 
-type Panel = "contents" | "notes" | "references" | "media" | "languages" | "shortcuts" | "more" | null;
+type Panel = "contents" | "notes" | "references" | "media" | "languages" | "reading" | "shortcuts" | "more" | null;
 
 const PROJECT_NAMES: Record<string, string> = {
   wikipedia: "Wikipedia",
@@ -560,9 +562,10 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
 
   const activeHighlight = openHighlight ? highlights.find((item) => item.id === openHighlight.id) : undefined;
   const showDock = pastHeader && !atEnd;
+  const readingPrefs = readingStore.use();
 
   return (
-    <div className="reader">
+    <div className="reader" style={readingStyle(readingPrefs)}>
       <div className="reading-progress" ref={progressRef} aria-hidden="true">
         <span />
       </div>
@@ -634,6 +637,9 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
                 <span className="count">{article.media.length}</span>
               </button>
             )}
+            <button type="button" className="action-btn action-aa" onClick={() => setPanel("reading")} aria-label="Reading settings" title="Reading settings">
+              <span aria-hidden="true">Aa</span>
+            </button>
             <button type="button" className="action-btn" onClick={() => setPanel("notes")} title="Highlights (n)">
               <Icon name="pen" size={19} />
               <span className="count">{highlights.length}</span>
@@ -921,6 +927,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         />
       )}
       {panel === "languages" && <LanguagesSheet wiki={article.wiki} languages={article.languages} onClose={closePanel} />}
+      {panel === "reading" && <ReadingSettings onClose={closePanel} />}
       {panel === "shortcuts" && <ShortcutsDialog onClose={closePanel} />}
 
       {lightbox !== null && (
