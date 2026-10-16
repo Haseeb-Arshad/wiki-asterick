@@ -3,13 +3,14 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
+import { suggestQuestions } from "../../../shared/suggestions";
 import { resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
 import { useHotkeys, useMediaQuery } from "../../lib/hooks";
 import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
-import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
+import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, setSuggestions, useAsk } from "../../lib/assistant";
 import { useBarSlot } from "../../lib/bar-slot";
 import { formatRate, listenStore, nextRate } from "../../lib/listen";
 import { forgetArticleOffline, offlineSupported, saveArticleOffline } from "../../lib/offline";
@@ -118,6 +119,12 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     setAssistantContext({ kind: webUrl ? "web" : "wiki", wiki: article.wiki, title: article.title, url: webUrl ?? null });
     return () => setAssistantContext(null);
   }, [article.wiki, article.title, webUrl]);
+
+  // Questions drawn from this article's own sections, offered when the bar is focused.
+  useEffect(() => {
+    setSuggestions(suggestQuestions(outline));
+    return () => setSuggestions([]);
+  }, [outline]);
 
   const notes = useMemo(() => notesFor(library.snapshot, article.wiki, article.title), [library.snapshot, article]);
   const { railTab } = useAsk();
