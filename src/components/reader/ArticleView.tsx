@@ -3,14 +3,18 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
-import { FEATURED_LANGUAGES, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
+import { suggestQuestions } from "../../../shared/suggestions";
+import { clipQuote, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
-import { useHotkeys, useMediaQuery } from "../../lib/hooks";
+import { useDocumentTitle, useHotkeys, useMediaQuery } from "../../lib/hooks";
 import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
-import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
+import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, setSuggestions, useAsk } from "../../lib/assistant";
 import { useBarSlot } from "../../lib/bar-slot";
+import { formatRate, listenStore, nextRate } from "../../lib/listen";
+import { forgetArticleOffline, offlineSupported, saveArticleOffline } from "../../lib/offline";
+import { readingStore, readingStyle } from "../../lib/reading";
 import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
 import {
   caretAt,
@@ -29,33 +33,14 @@ import { AsteriskMark } from "../AsteriskIcon";
 import { Icon } from "../Icon";
 import { Lightbox } from "../Lightbox";
 import { downloadText, articleToMarkdown, notesToMarkdown } from "./exporters";
+import { languageName, PROJECT_NAMES } from "./labels";
 import { flattenSections, scrollToSection, type OutlineEntry } from "./outline";
 import { ContentsSheet, LanguagesSheet, MediaSheet, NotesSheet, ReferencesSheet, ShortcutsDialog, TocList } from "./ReaderPanels";
+import { ReadingSettings } from "./ReadingSettings";
 import { FootnotePopover, HighlightPopover, LinkPreview, SelectionToolbar } from "./ReaderPopovers";
 import { useReadAloud } from "./useReadAloud";
 
-type Panel = "contents" | "notes" | "references" | "media" | "languages" | "shortcuts" | "more" | null;
-
-const PROJECT_NAMES: Record<string, string> = {
-  wikipedia: "Wikipedia",
-  wiktionary: "Wiktionary",
-  wikivoyage: "Wikivoyage",
-  wikibooks: "Wikibooks",
-  wikiquote: "Wikiquote",
-  wikinews: "Wikinews",
-  wikiversity: "Wikiversity",
-  wikisource: "Wikisource",
-};
-
-function languageName(lang: string): string {
-  const featured = FEATURED_LANGUAGES.find((language) => language.code === lang)?.name;
-  if (featured) return featured;
-  try {
-    return new Intl.DisplayNames([lang], { type: "language" }).of(lang) ?? lang;
-  } catch {
-    return lang;
-  }
-}
+type Panel = "contents" | "notes" | "references" | "media" | "languages" | "reading" | "shortcuts" | "more" | null;
 
 const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
 
@@ -92,7 +77,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   const [refTarget, setRefTarget] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [footnote, setFootnote] = useState<{ note: Footnote; anchor: HTMLElement } | null>(null);
-  const [preview, setPreview] = useState<{ wiki: string; title: string; anchor: HTMLElement } | null>(null);
+  const [preview, setPreview] = useState<{ wiki: string; title: string; anchor: HTMLElement; touch?: boolean } | null>(null);
   const [selection, setSelection] = useState<Range | null>(null);
   // `fallback` positions the editor before a brand-new highlight has been painted.
   const [openHighlight, setOpenHighlight] = useState<{ id: string; editing: boolean; fallback?: DOMRect } | null>(null);
@@ -135,6 +120,12 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     return () => setAssistantContext(null);
   }, [article.wiki, article.title, webUrl]);
 
+  // Questions drawn from this article's own sections, offered when the bar is focused.
+  useEffect(() => {
+    setSuggestions(suggestQuestions(outline));
+    return () => setSuggestions([]);
+  }, [outline]);
+
   const notes = useMemo(() => notesFor(library.snapshot, article.wiki, article.title), [library.snapshot, article]);
   const { railTab } = useAsk();
   const barSlot = useBarSlot();
@@ -154,13 +145,19 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     }
   }, []);
 
-  // ---- page title ---------------------------------------------------------------
+  // ---- page title and a shared passage -------------------------------------------------
+  useDocumentTitle(article.title);
+
+  // A link shared from a highlight carries the passage: find it, scroll to it and flash it.
+  const sharedQuote = useLocation({ select: (location) => (location.search as { quote?: string }).quote });
   useEffect(() => {
-    document.title = `${article.title} — WikiAsterisk`;
-    return () => {
-      document.title = "WikiAsterisk — Wikipedia, without the clutter";
-    };
-  }, [article.title]);
+    if (!sharedQuote) return;
+    const timer = window.setTimeout(() => {
+      // Jump straight there (no long glide down the page), so the flash happens where you land.
+      if (!revealQuote({ text: sharedQuote, prefix: "", suffix: "" }, "instant")) toast("That passage isn't in the article any more.");
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [sharedQuote]);
 
   // ---- scroll: progress bar, header state, active section ------------------------
   useEffect(() => {
@@ -377,7 +374,9 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     };
   }, []);
 
-  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${shareUrl})`;
+  // A link to this article that opens on the passage.
+  const quoteUrl = (text: string) => `${shareUrl}${shareUrl.includes("?") ? "&" : "?"}quote=${encodeURIComponent(clipQuote(text))}`;
+  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${quoteUrl(text)})`;
 
   function createHighlight(color: HighlightColor, withNote = false) {
     const range = selection;
@@ -415,6 +414,13 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   function onBodyClick(event: React.MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     if (event.defaultPrevented || event.button !== 0) return;
+
+    // Letting go after a hold opened a preview must not also follow the link.
+    if (heldOpen.current) {
+      heldOpen.current = false;
+      event.preventDefault();
+      return;
+    }
 
     const footnoteLink = target.closest<HTMLAnchorElement>("a[data-fn]");
     if (footnoteLink) {
@@ -478,9 +484,13 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     }
   }
 
-  // ---- hover previews for links (mouse only) -----------------------------------------------
+  // ---- previews for links: hover with a mouse, press and hold on touch screens ----------------
   const previewTimer = useRef(0);
   const hideTimer = useRef(0);
+  const pressTimer = useRef(0);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  // True from the moment a hold opens a preview until the next press, so its click is ignored.
+  const heldOpen = useRef(false);
 
   function onBodyPointerOver(event: React.PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "mouse") return;
@@ -494,6 +504,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   }
 
   function onBodyPointerOut(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
     const link = (event.target as HTMLElement).closest("a[data-wiki-title]");
     if (!link || link.contains(event.relatedTarget as Node | null)) return;
     window.clearTimeout(previewTimer.current);
@@ -501,19 +512,72 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   }
 
   function onBodyPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    // Start loading the next article the moment a link is pressed.
     const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[data-wiki-title]");
-    if (link) void queryClient.prefetchQuery(articleQuery(link.dataset.wiki ?? article.wiki, link.dataset.wikiTitle ?? ""));
+    heldOpen.current = false;
+    window.clearTimeout(pressTimer.current);
+    if (!link) return;
+    const wiki = link.dataset.wiki ?? article.wiki;
+    const title = link.dataset.wikiTitle ?? "";
+    // Start loading the next article the moment a link is pressed.
+    void queryClient.prefetchQuery(articleQuery(wiki, title));
+
+    if (event.pointerType === "mouse") return;
+    pressStart.current = { x: event.clientX, y: event.clientY };
+    pressTimer.current = window.setTimeout(() => {
+      heldOpen.current = true;
+      pressStart.current = null;
+      navigator.vibrate?.(8);
+      setPreview({ wiki, title, anchor: link, touch: true });
+    }, 450);
   }
+
+  function onBodyPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const start = pressStart.current;
+    // Scrolling or dragging is not a hold.
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) {
+      window.clearTimeout(pressTimer.current);
+      pressStart.current = null;
+    }
+  }
+
+  function endPress() {
+    window.clearTimeout(pressTimer.current);
+    pressStart.current = null;
+  }
+
+  function onBodyContextMenu(event: React.MouseEvent<HTMLDivElement>) {
+    // The browser's own link menu would cover the preview that a hold just opened.
+    if (heldOpen.current || (coarsePointer() && (event.target as HTMLElement).closest("a[data-wiki-title]"))) event.preventDefault();
+  }
+
+  // A preview opened by a hold closes when you tap anywhere outside it.
+  useEffect(() => {
+    if (!preview?.touch) return;
+    const onDown = (event: PointerEvent) => {
+      if (!(event.target as HTMLElement).closest(".preview-card")) setPreview(null);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [preview]);
 
   // ---- actions ----------------------------------------------------------------------------
   function toggleSave() {
     const nowSaved = library.toggleBookmark(ref);
     setSavePulse((value) => value + 1);
-    toast(nowSaved ? (user || sessionLoading ? "Saved to your library" : "Saved in this browser") : "Removed from your library", {
+    const where = user || sessionLoading ? "Saved to your library" : "Saved in this browser";
+    toast(nowSaved ? where : "Removed from your library", {
       tone: nowSaved ? "success" : "neutral",
       action: nowSaved ? { label: "View", onClick: () => navigate({ to: "/library" }) } : undefined,
     });
+    if (!offlineSupported) return;
+    if (nowSaved) {
+      // Keep a copy for reading without a connection, and say so only once it is stored.
+      void saveArticleOffline(article, webUrl).then((stored) => {
+        if (stored) toast("Available offline", { tone: "success" });
+      });
+    } else {
+      void forgetArticleOffline(article, webUrl);
+    }
   }
 
   async function shareArticle() {
@@ -560,9 +624,11 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
 
   const activeHighlight = openHighlight ? highlights.find((item) => item.id === openHighlight.id) : undefined;
   const showDock = pastHeader && !atEnd;
+  const readingPrefs = readingStore.use();
+  const listenPrefs = listenStore.use();
 
   return (
-    <div className="reader">
+    <div className="reader" style={readingStyle(readingPrefs)}>
       <div className="reading-progress" ref={progressRef} aria-hidden="true">
         <span />
       </div>
@@ -618,9 +684,20 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
               </button>
             )}
             {readAloud.state !== "idle" && (
-              <button type="button" className="action-btn" onClick={readAloud.stop} aria-label="Stop reading aloud">
-                <Icon name="stop" size={16} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="action-btn action-speed"
+                  onClick={() => listenStore.set((previous) => ({ ...previous, rate: nextRate(previous.rate) }))}
+                  aria-label={`Listening speed ${formatRate(listenPrefs.rate)}. Change speed`}
+                  title="Listening speed"
+                >
+                  {formatRate(listenPrefs.rate)}
+                </button>
+                <button type="button" className="action-btn" onClick={readAloud.stop} aria-label="Stop reading aloud">
+                  <Icon name="stop" size={16} />
+                </button>
+              </>
             )}
             <button type="button" className="action-btn" onClick={shareArticle} title="Share">
               <Icon name="share" size={19} />
@@ -634,6 +711,9 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
                 <span className="count">{article.media.length}</span>
               </button>
             )}
+            <button type="button" className="action-btn action-aa" onClick={() => setPanel("reading")} aria-label="Reading settings" title="Reading settings">
+              <span aria-hidden="true">Aa</span>
+            </button>
             <button type="button" className="action-btn" onClick={() => setPanel("notes")} title="Highlights (n)">
               <Icon name="pen" size={19} />
               <span className="count">{highlights.length}</span>
@@ -720,6 +800,10 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           onPointerOver={onBodyPointerOver}
           onPointerOut={onBodyPointerOut}
           onPointerDown={onBodyPointerDown}
+          onPointerMove={onBodyPointerMove}
+          onPointerUp={endPress}
+          onPointerCancel={endPress}
+          onContextMenu={onBodyContextMenu}
         >
           <ArticleBody outline={outline} />
         </div>
@@ -813,10 +897,23 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           wiki={preview.wiki}
           title={preview.title}
           anchor={preview.anchor}
-          onPointerEnter={() => window.clearTimeout(hideTimer.current)}
-          onPointerLeave={() => {
-            hideTimer.current = window.setTimeout(() => setPreview(null), 220);
-          }}
+          // Touch previews stay until you tap away or open them; only a mouse hovers.
+          onPointerEnter={preview.touch ? undefined : () => window.clearTimeout(hideTimer.current)}
+          onPointerLeave={
+            preview.touch
+              ? undefined
+              : () => {
+                  hideTimer.current = window.setTimeout(() => setPreview(null), 220);
+                }
+          }
+          onOpen={
+            preview.touch
+              ? () => {
+                  setPreview(null);
+                  navigate(articleLink(preview.wiki, preview.title));
+                }
+              : undefined
+          }
         />
       )}
       {selection && !openHighlight && (
@@ -921,6 +1018,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         />
       )}
       {panel === "languages" && <LanguagesSheet wiki={article.wiki} languages={article.languages} onClose={closePanel} />}
+      {panel === "reading" && <ReadingSettings lang={article.lang} onClose={closePanel} />}
       {panel === "shortcuts" && <ShortcutsDialog onClose={closePanel} />}
 
       {lightbox !== null && (

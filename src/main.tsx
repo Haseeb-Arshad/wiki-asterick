@@ -5,6 +5,8 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import "@fontsource-variable/newsreader/opsz.css";
 import "@fontsource-variable/newsreader/opsz-italic.css";
 import "@fontsource-variable/geist";
+import "./lib/install";
+import { registerServiceWorker } from "./lib/offline";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
 
@@ -37,6 +39,8 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
+
+registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

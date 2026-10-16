@@ -9,6 +9,7 @@ export const Route = createFileRoute("/library")({
   }),
   component: function LibraryRoute() {
     const { tab } = Route.useSearch();
-    return <LibraryPage tab={tab ?? "saved"} />;
+    // No tab in the address: the page opens on the first section that has something in it.
+    return <LibraryPage tab={tab} />;
   },
 });

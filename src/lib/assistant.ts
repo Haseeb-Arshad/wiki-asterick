@@ -72,6 +72,8 @@ interface AskState {
   /** Set by the reader while its left rail is on screen. */
   railAvailable: boolean;
   railTab: "contents" | "notes";
+  /** Questions drawn from the open article, offered above the bar when it is focused. */
+  suggestions: string[];
 }
 
 export const answerModeStore = createPersistedStore<AnswerMode>("wa-ai-mode", "auto", (raw) =>
@@ -105,6 +107,7 @@ let state: AskState = {
   revealTick: 0,
   railAvailable: false,
   railTab: "contents",
+  suggestions: [],
 };
 const listeners = new Set<() => void>();
 let controller: AbortController | null = null;
@@ -135,6 +138,11 @@ export function noteKey(context: AskContext | null): { wiki: string; title: stri
 
 const sameContext = (a: AskContext | null, b: AskContext | null) =>
   a === b || (a !== null && b !== null && a.wiki === b.wiki && a.title === b.title && (a.url ?? null) === (b.url ?? null));
+
+export function setSuggestions(suggestions: string[]) {
+  if (suggestions.length === state.suggestions.length && suggestions.every((item, index) => item === state.suggestions[index])) return;
+  setState({ suggestions });
+}
 
 export function setAssistantContext(context: AskContext | null) {
   if (sameContext(context, state.context)) return;

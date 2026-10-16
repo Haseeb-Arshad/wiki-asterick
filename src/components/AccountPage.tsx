@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ApiError } from "../lib/api";
 import { useAuthActions, useSession } from "../lib/auth";
+import { useDocumentTitle } from "../lib/hooks";
 import { formatDate, pluralize } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { toast } from "../lib/toast";
@@ -17,6 +18,7 @@ export function AccountPage() {
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  useDocumentTitle("Account");
 
   if (isLoading) return null;
 

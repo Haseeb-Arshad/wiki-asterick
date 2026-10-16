@@ -1,11 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";
 import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from "../../shared/wiki";
 import { useOutsidePress } from "../lib/hooks";
 import { articleLink } from "../lib/links";
-import { ask } from "../lib/assistant";
+import { aiStatusQuery, ask } from "../lib/assistant";
 import { rememberSearch } from "../lib/preferences";
-import { modKey, useArticleSearch, type SearchOption } from "../lib/search";
+import { modKey, useArticleSearch, useRecentOptions, type SearchOption } from "../lib/search";
 import { Icon } from "./Icon";
 import { SearchResultRow } from "./SearchResults";
 
@@ -15,7 +16,7 @@ export function SearchBox({
   onWikiChange,
   initialQuery = "",
   autoFocus = false,
-  placeholder = "Search any topic or paste a link",
+  placeholder,
 }: {
   wiki: string;
   /** When given, a compact language picker sits inside the field. */
@@ -30,21 +31,27 @@ export function SearchBox({
   const [query, setQuery] = useState(initialQuery);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const { options, isFetching } = useArticleSearch(query, wiki);
+  const { options: matches, isFetching } = useArticleSearch(query, wiki);
+  const recents = useRecentOptions(5);
+  const aiEnabled = useQuery(aiStatusQuery).data?.enabled === true;
   const lang = wikiLanguage(wiki);
 
   useOutsidePress([boxRef], () => setOpen(false), open);
 
-  const visible = open && query.trim().length > 0 && options.length > 0;
+  // An empty, focused box offers where you left off; typing offers matches and the AI.
+  const typing = query.trim().length > 0;
+  const options = typing ? matches : recents;
+  const visible = open && options.length > 0;
+  const hint = placeholder ?? (aiEnabled ? "Search, paste a link, or ask a question" : "Search any topic or paste a link");
 
   function go(option: SearchOption) {
     setOpen(false);
     if (option.kind === "ask") {
       setQuery("");
-      void ask(option.title);
+      void ask(option.query ?? option.title);
       return;
     }
-    if (option.kind === "link" && option.url) {
+    if ((option.kind === "link" || option.kind === "recent") && option.url) {
       navigate({ to: "/web", search: { url: option.url } });
       return;
     }
@@ -121,7 +128,7 @@ export function SearchBox({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder={placeholder}
+          placeholder={hint}
           aria-label="Search articles"
           role="combobox"
           aria-expanded={visible}
@@ -142,7 +149,7 @@ export function SearchBox({
       </form>
 
       {visible && (
-        <div className="search-suggestions" id={listId} role="listbox" aria-label="Suggestions">
+        <div className="search-suggestions" id={listId} role="listbox" aria-label={typing ? "Suggestions" : "Recent"}>
           {options.map((option, index) => (
             <SearchResultRow
               key={option.key}

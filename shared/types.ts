@@ -198,6 +198,8 @@ export interface AiNoteSource {
   site: string;
   date: string | null;
   favicon: string | null;
+  /** Article passages: the section of the page this source is, so a citation can jump to it. */
+  sectionId?: string;
 }
 
 /** A question asked of the AI and its answer, kept with the page it was asked on. */

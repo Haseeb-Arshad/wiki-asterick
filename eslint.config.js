@@ -26,6 +26,14 @@ export default defineConfig([
     },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: globals.node,
+    },
+  },
+  {
     files: ['server/**/*.ts', 'tests/**/*.ts', '*.config.{js,ts}'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {

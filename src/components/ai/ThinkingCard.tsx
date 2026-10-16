@@ -36,6 +36,8 @@ export function ThinkingCard({ run }: { run: AskRun }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const reasoningRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
+  // False once the reader scrolls up in the answer to read it; the stream stops pulling them down.
+  const followAnswer = useRef(true);
   const [showReasoning, setShowReasoning] = useState(false);
   const elapsed = useElapsed(run);
 
@@ -52,8 +54,13 @@ export function ThinkingCard({ run }: { run: AskRun }) {
   }, [run.reasoning]);
   useEffect(() => {
     const element = answerRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (element && followAnswer.current) element.scrollTop = element.scrollHeight;
   }, [run.answer]);
+  // Once it's complete, show the answer from its first line, where the direct answer is.
+  useEffect(() => {
+    const element = answerRef.current;
+    if (run.phase === "done" && element && followAnswer.current) element.scrollTop = 0;
+  }, [run.phase]);
 
   // ---- done: open the note where it lives, then fly the card into it ----------------------
   useEffect(() => {
@@ -101,7 +108,11 @@ export function ThinkingCard({ run }: { run: AskRun }) {
   }, [run.phase, run.id]);
 
   return (
-    <div ref={cardRef} className="think-card" data-phase={run.phase} data-mode={run.mode} role="status" aria-live="polite">
+    <div ref={cardRef} className="think-card" data-phase={run.phase} data-mode={run.mode}>
+      {/* Screen readers hear each step and the finish, not every streamed word. */}
+      <p className="visually-hidden" role="status">
+        {run.phase === "done" ? "Answer ready and saved to your notes." : headline}
+      </p>
       <div className="think-head">
         <Orb phase={run.phase} thinking={thinking} />
         <div className="think-title">
@@ -167,8 +178,16 @@ export function ThinkingCard({ run }: { run: AskRun }) {
       )}
 
       {run.answer && (
-        <div ref={answerRef} className="think-answer markdown">
-          <Markdown text={run.answer} sources={run.sources} />
+        <div
+          ref={answerRef}
+          className="think-answer markdown"
+          onScroll={(event) => {
+            if (run.phase !== "running") return;
+            const element = event.currentTarget;
+            followAnswer.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24;
+          }}
+        >
+          <Markdown text={run.answer} sources={run.sources} page={run.context ?? undefined} />
           {run.phase === "running" && <span className="caret" aria-hidden="true" />}
         </div>
       )}

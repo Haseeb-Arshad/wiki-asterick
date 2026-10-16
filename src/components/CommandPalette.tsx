@@ -1,13 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FEATURED_LANGUAGES, normalizeWikiHost, wikiLanguage, wikiSlug } from "../../shared/wiki";
-import { useSession } from "../lib/auth";
-import { useLibrary } from "../lib/library";
 import { articleLink } from "../lib/links";
 import { ask } from "../lib/assistant";
-import { recentSearchStore, rememberSearch, wikiStore } from "../lib/preferences";
+import { rememberSearch, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
-import { setPaletteOpen, useArticleSearch, usePaletteOpen, type SearchOption } from "../lib/search";
+import { setPaletteOpen, useArticleSearch, usePaletteOpen, useRecentOptions, type SearchOption } from "../lib/search";
 import { toast } from "../lib/toast";
 import { Icon } from "./Icon";
 import { SearchResultRow } from "./SearchResults";
@@ -26,9 +24,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const wiki = wikiStore.use();
-  const recent = recentSearchStore.use();
-  const { user } = useSession();
-  const { snapshot } = useLibrary(user);
+  const recentItems = useRecentOptions(6);
   const { options: results, isFetching, isSettled } = useArticleSearch(query, wiki);
 
   useEffect(() => {
@@ -58,33 +54,12 @@ function Palette({ onClose }: { onClose: () => void }) {
       ];
     }
 
-    const seen = new Set<string>();
-    const recentItems: SearchOption[] = [];
-    const candidates = [
-      ...snapshot.history.slice(0, 4),
-      ...recent.map((item) => ({ ...item, description: "", thumbnail: null, url: null })),
-    ];
-    for (const item of candidates) {
-      const key = `${item.wiki}:${item.title}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      recentItems.push({
-        key: `recent:${key}`,
-        kind: "recent",
-        wiki: item.wiki,
-        title: item.title,
-        description: item.description,
-        thumbnail: item.thumbnail,
-        url: item.url ?? undefined,
-      });
-    }
-
     return [
-      ...recentItems.slice(0, 6),
+      ...recentItems,
       { key: "random", kind: "action", wiki, title: "Surprise me", description: "Open a random article", thumbnail: null },
       { key: "library", kind: "action", wiki, title: "Your library", description: "Saved articles, highlights and history", thumbnail: null },
     ];
-  }, [query, results, wiki, snapshot.history, recent]);
+  }, [query, results, wiki, recentItems]);
 
   // Keep the active row valid as results change.
   const activeIndex = Math.min(active, Math.max(0, options.length - 1));
@@ -105,7 +80,7 @@ function Palette({ onClose }: { onClose: () => void }) {
       return;
     }
     if (option.kind === "ask") {
-      void ask(option.title);
+      void ask(option.query ?? option.title);
       return;
     }
     if (option.kind === "link" && option.url) {
@@ -142,7 +117,8 @@ function Palette({ onClose }: { onClose: () => void }) {
   }
 
   const trimmed = query.trim();
-  const noResults = trimmed && isSettled && results.length === 0;
+  // The "Ask AI" row is always there, so "no results" means no articles.
+  const noResults = trimmed && isSettled && results.every((option) => option.kind === "ask");
   const recentCount = options.filter((option) => option.kind === "recent").length;
 
   return (

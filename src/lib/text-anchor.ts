@@ -195,14 +195,16 @@ export function clearAiPassages() {
 }
 
 /** Finds a quote in the open article, scrolls to it and flashes it. */
-export function revealQuote(quote: TextQuote & { sectionId?: string }): boolean {
+export function revealQuote(quote: TextQuote & { sectionId?: string }, behavior: ScrollBehavior = "smooth"): boolean {
   const body = document.querySelector<HTMLElement>(".reader .prose");
   if (!body || !quote.text) return false;
   const section = quote.sectionId ? document.getElementById(quote.sectionId) : null;
   const root = section && body.contains(section) ? section : body;
   const range = findQuote(root, quote) ?? (root !== body ? findQuote(body, quote) : null);
   if (!range) return false;
-  range.startContainer.parentElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Bring the quote itself into view (not the middle of a long paragraph around it).
+  const rect = range.getBoundingClientRect();
+  window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - window.innerHeight * 0.35), behavior });
   if (supportsHighlights) {
     CSS.highlights.set("wa-flash", new Highlight(range));
     window.setTimeout(() => CSS.highlights.delete("wa-flash"), 1800);

@@ -58,7 +58,7 @@ export function AskBar() {
 function AskBarInner({ webSearch }: { webSearch: boolean }) {
   const { user } = useSession();
   const library = useLibrary(user);
-  const { context, quote, followUp, run, focusTick } = useAsk();
+  const { context, quote, followUp, run, focusTick, suggestions } = useAsk();
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -189,11 +189,11 @@ function AskBarInner({ webSearch }: { webSearch: boolean }) {
           ? `Ask about ${context.title.length > 34 ? `${context.title.slice(0, 32)}…` : context.title}`
           : "Ask anything";
 
-  const prompts = !draft && focused && !run ? (quote ? QUOTE_PROMPTS : context && !followUp && pageNotes.length === 0 ? PAGE_PROMPTS : []) : [];
+  const prompts = !draft && focused && !run ? (quote ? QUOTE_PROMPTS : context && !followUp && pageNotes.length === 0 ? (suggestions.length ? suggestions : PAGE_PROMPTS) : []) : [];
 
   return (
     <div className={`askbar-wrap ${compact ? "is-compact" : ""}`}>
-      {run && <ThinkingCard run={run} />}
+      {run && <ThinkingCard key={run.id} run={run} />}
 
       {prompts.length > 0 && (
         <div className="ask-prompts" role="list">
@@ -216,7 +216,7 @@ function AskBarInner({ webSearch }: { webSearch: boolean }) {
 
       <div
         ref={barRef}
-        className={`askbar ${focused ? "is-focused" : ""} ${dictation.listening ? "is-listening" : ""} ${running ? "is-running" : ""}`}
+        className={`askbar ${focused ? "is-focused" : ""} ${focused || draft ? "is-composing" : ""} ${dictation.listening ? "is-listening" : ""} ${running ? "is-running" : ""}`}
         onClick={(event) => {
           if (event.target === event.currentTarget) inputRef.current?.focus();
         }}

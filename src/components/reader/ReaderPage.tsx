@@ -1,15 +1,18 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { pathToTitle, wikiSlug } from "../../../shared/wiki";
+import { pathToTitle, wikiLanguage, wikiProject, wikiSlug } from "../../../shared/wiki";
 import { ApiError } from "../../lib/api";
+import { useDocumentTitle } from "../../lib/hooks";
 import { articleLink, wikiFromParam } from "../../lib/links";
-import { articleQuery, searchQuery } from "../../lib/queries";
+import { readingStore, readingStyle } from "../../lib/reading";
+import { articleQuery, searchQuery, summaryQuery } from "../../lib/queries";
 import { setPaletteOpen } from "../../lib/search";
 import { AsteriskMark } from "../AsteriskIcon";
 import { Icon } from "../Icon";
 import { Thumb } from "../Thumb";
 import { ArticleView } from "./ArticleView";
+import { languageName, PROJECT_NAMES } from "./labels";
 
 export function ReaderPage() {
   const params = useParams({ from: "/read/$wiki/$" });
@@ -44,22 +47,59 @@ function ArticleLoader({ wiki, title }: { wiki: string; title: string }) {
   useEffect(() => {
     if (!article || article.title === title || article.wiki !== wiki) return;
     queryClient.setQueryData(articleQuery(wiki, article.title).queryKey, article);
-    navigate({ ...articleLink(wiki, article.title, window.location.hash.slice(1) || undefined), replace: true });
+    navigate({ ...articleLink(wiki, article.title, window.location.hash.slice(1) || undefined), search: true, replace: true });
   }, [article, navigate, queryClient, title, wiki]);
 
-  if (query.isPending) return <ArticleSkeleton />;
+  if (query.isPending) return <ArticleSkeleton wiki={wiki} title={title} />;
   if (query.isError) return <ArticleError error={query.error} wiki={wiki} title={title} onRetry={() => query.refetch()} />;
   return <ArticleView key={`${article!.wiki}:${article!.title}`} article={article!} />;
 }
 
-export function ArticleSkeleton() {
+/**
+ * What shows while the article body loads. For a wiki article the title is already
+ * in the address, and the short summary (description, first paragraph, lead image)
+ * arrives long before the full page, so the reader sees real content straight away.
+ */
+export function ArticleSkeleton({ wiki, title }: { wiki?: string; title?: string }) {
+  const prefs = readingStore.use();
+  const known = Boolean(wiki && title);
+  const summary = useQuery({ ...summaryQuery(wiki ?? "", title ?? ""), enabled: known }).data;
+  useDocumentTitle(known ? (summary?.title ?? title ?? null) : null);
+  const project = wiki ? (PROJECT_NAMES[wikiProject(wiki)] ?? "Wiki") : "";
+  const lang = summary?.lang ?? (wiki ? wikiLanguage(wiki) : undefined);
+  const dir = summary?.dir;
+  const image = summary?.image;
+
   return (
-    <div className="reader" aria-busy="true" aria-label="Loading article">
+    <div className="reader" aria-busy="true" aria-label="Loading article" style={readingStyle(prefs)}>
       <div className="column article-header">
-        <div className="skeleton skeleton-text" style={{ width: 180 }} />
-        <div className="skeleton skeleton-title" style={{ width: "85%", marginTop: 18 }} />
-        <div className="skeleton skeleton-title" style={{ width: "55%" }} />
-        <div className="skeleton skeleton-text" style={{ width: "70%", marginTop: 20, height: 20 }} />
+        {known && wiki ? (
+          <div className="article-kicker">
+            <Icon name="globe" size={15} />
+            <span>
+              {project} · {languageName(wikiLanguage(wiki))}
+            </span>
+          </div>
+        ) : (
+          <div className="skeleton skeleton-text" style={{ width: 180 }} />
+        )}
+        {known ? (
+          <h1 className="article-title" dir={dir} lang={lang}>
+            {summary?.title ?? title}
+          </h1>
+        ) : (
+          <>
+            <div className="skeleton skeleton-title" style={{ width: "85%", marginTop: 18 }} />
+            <div className="skeleton skeleton-title" style={{ width: "55%" }} />
+          </>
+        )}
+        {summary?.description ? (
+          <p className="article-dek" dir={dir} lang={lang}>
+            {summary.description}
+          </p>
+        ) : (
+          <div className="skeleton skeleton-text" style={{ width: "70%", marginTop: 20, height: 20 }} />
+        )}
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 30 }}>
           <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 14 }} />
           <div style={{ flex: 1 }}>
@@ -68,7 +108,21 @@ export function ArticleSkeleton() {
           </div>
         </div>
         <div className="skeleton" style={{ height: 1, margin: "28px 0" }} />
-        {Array.from({ length: 8 }, (_, index) => (
+      </div>
+
+      {image && (
+        <figure className={`hero-figure ${image.width && image.height > image.width * 0.9 ? "is-tall" : ""}`}>
+          <img src={image.src} alt="" width={image.width || undefined} height={image.height || undefined} fetchPriority="high" />
+        </figure>
+      )}
+
+      <div className="column">
+        {summary?.extract ? (
+          <div className="prose" dir={dir} lang={lang}>
+            <p>{summary.extract}</p>
+          </div>
+        ) : null}
+        {Array.from({ length: summary?.extract ? 4 : 8 }, (_, index) => (
           <div key={index} className="skeleton skeleton-text" style={{ height: 18, width: index % 4 === 3 ? "62%" : "100%", margin: "16px 0" }} />
         ))}
       </div>
@@ -78,6 +132,7 @@ export function ArticleSkeleton() {
 
 function ArticleError({ error, wiki, title, onRetry }: { error: Error; wiki: string; title: string; onRetry: () => void }) {
   const notFound = error instanceof ApiError && error.status === 404;
+  useDocumentTitle(notFound ? "Article not found" : "Couldn’t load article");
   const suggestions = useQuery({ ...searchQuery(wiki, title), enabled: notFound });
 
   if (!notFound) {

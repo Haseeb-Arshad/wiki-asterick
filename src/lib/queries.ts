@@ -6,10 +6,14 @@ const MINUTE = 60_000;
 
 const params = (values: Record<string, string>) => new URLSearchParams(values).toString();
 
+/** The exact request address for an article; offline copies are stored under it. */
+export const articlePath = (wiki: string, title: string) => `/api/wiki/article?${params({ wiki, title })}`;
+export const webArticlePath = (url: string) => `/api/web/article?${params({ url })}`;
+
 export const articleQuery = (wiki: string, title: string) =>
   queryOptions({
     queryKey: ["article", wiki, title],
-    queryFn: ({ signal }) => api<WikiArticle>(`/api/wiki/article?${params({ wiki, title })}`, { signal }),
+    queryFn: ({ signal }) => api<WikiArticle>(articlePath(wiki, title), { signal }),
     staleTime: 15 * MINUTE,
     gcTime: 30 * MINUTE,
   });
@@ -51,7 +55,7 @@ export function fetchRandomArticle(wiki: string) {
 export const webArticleQuery = (url: string) =>
   queryOptions({
     queryKey: ["web-article", url],
-    queryFn: ({ signal }) => api<WikiArticle>(`/api/web/article?${params({ url })}`, { signal }),
+    queryFn: ({ signal }) => api<WikiArticle>(webArticlePath(url), { signal }),
     staleTime: 15 * MINUTE,
     gcTime: 30 * MINUTE,
   });

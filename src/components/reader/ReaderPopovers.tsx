@@ -73,12 +73,15 @@ export function LinkPreview({
   anchor,
   onPointerEnter,
   onPointerLeave,
+  onOpen,
 }: {
   wiki: string;
   title: string;
   anchor: HTMLElement;
-  onPointerEnter: () => void;
-  onPointerLeave: () => void;
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
+  /** Present for previews opened by a press and hold, where there is no hover or click on the link itself. */
+  onOpen?: () => void;
 }) {
   const summary = useQuery(summaryQuery(wiki, title));
   const data = summary.data;
@@ -105,6 +108,11 @@ export function LinkPreview({
             {data.extract && <p>{data.extract}</p>}
           </div>
         </>
+      )}
+      {onOpen && (
+        <button type="button" className="preview-open" onClick={onOpen}>
+          Read article <Icon name="arrowRight" size={16} />
+        </button>
       )}
     </Floating>
   );

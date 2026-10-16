@@ -36,6 +36,7 @@ function terms(text: string): string[] {
 }
 
 interface Chunk {
+  id: string;
   title: string;
   text: string;
   order: number;
@@ -53,23 +54,52 @@ function sectionText(html: string): string {
 
 function flatten(sections: WikiSection[], into: Chunk[] = []): Chunk[] {
   for (const section of sections) {
-    into.push({ title: section.title, text: sectionText(section.html), order: into.length });
+    into.push({ id: section.id, title: section.title, text: sectionText(section.html), order: into.length });
     flatten(section.subsections, into);
   }
   return into;
 }
 
+const squash = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
+
+/** One section of the article, chosen as relevant to the question. */
+export interface ContextPassage {
+  /** The section's anchor in the article ("lead" for the introduction). */
+  id: string;
+  title: string;
+  text: string;
+}
+
+export interface ContextPassages {
+  /** The infobox as "Label: value" lines; empty when the page has none. */
+  facts: string;
+  /** In reading order. The lead is always first. */
+  passages: ContextPassage[];
+  /** Titles of the sections left out for space. */
+  omitted: string[];
+}
+
 /**
- * Plain-text context for the model: the lead and infobox always, then the
- * sections that share the most words with the question, in reading order,
- * until the character budget runs out.
+ * The parts of the article to show the model: the lead and infobox always, the
+ * section holding the passage the reader highlighted, then the sections that share
+ * the most words with the question, in reading order, until the character budget
+ * or the passage limit runs out.
  */
-export function buildContextText(article: WikiArticle, question: string, budget = 28_000): string {
+export function buildContextPassages(
+  article: WikiArticle,
+  question: string,
+  { budget = 28_000, focus = "", maxPassages = 8 }: { budget?: number; focus?: string; maxPassages?: number } = {}
+): ContextPassages {
   const chunks = flatten(article.sections);
   const wanted = new Set(terms(question));
 
+  // The section the highlighted passage came from must be in the answer's sources.
+  const needle = squash(focus).slice(0, 80);
+  const focused = needle.length >= 12 ? chunks.find((chunk) => chunk.order > 0 && squash(chunk.text).includes(needle)) : undefined;
+
   const scored = chunks.map((chunk) => {
     if (chunk.order === 0) return { chunk, score: Infinity };
+    if (chunk === focused) return { chunk, score: Number.MAX_VALUE };
     const words = terms(`${chunk.title} ${chunk.title} ${chunk.text}`);
     let score = 0;
     for (const word of words) if (wanted.has(word)) score += 1;
@@ -83,6 +113,7 @@ export function buildContextText(article: WikiArticle, question: string, budget 
   if (facts) used += facts.length;
 
   for (const { chunk } of [...scored].sort((a, b) => b.score - a.score || a.chunk.order - b.chunk.order)) {
+    if (picked.length >= maxPassages) break;
     const cost = chunk.text.length + chunk.title.length + 8;
     if (used + cost > budget) {
       if (picked.length && used > budget * 0.8) break;
@@ -93,11 +124,17 @@ export function buildContextText(article: WikiArticle, question: string, budget 
   }
 
   picked.sort((a, b) => a.order - b.order);
-  const parts = [
-    facts ? `Key facts:\n${facts}` : "",
-    ...picked.map((chunk) => (chunk.title ? `## ${chunk.title}\n${chunk.text}` : chunk.text)),
-  ].filter(Boolean);
-  const omitted = chunks.length - picked.length;
-  if (omitted > 0) parts.push(`(${omitted} other section${omitted === 1 ? "" : "s"} not included: ${chunks.filter((c) => !picked.includes(c) && c.title).map((c) => c.title).slice(0, 25).join("; ")})`);
+  return {
+    facts,
+    passages: picked.map((chunk) => ({ id: chunk.id, title: chunk.title, text: chunk.text })),
+    omitted: chunks.filter((chunk) => !picked.includes(chunk) && chunk.title).map((chunk) => chunk.title),
+  };
+}
+
+/** The same selection as one block of plain text, for tests and simple callers. */
+export function buildContextText(article: WikiArticle, question: string, budget = 28_000): string {
+  const { facts, passages, omitted } = buildContextPassages(article, question, { budget, maxPassages: Infinity });
+  const parts = [facts ? `Key facts:\n${facts}` : "", ...passages.map((passage) => (passage.title ? `## ${passage.title}\n${passage.text}` : passage.text))].filter(Boolean);
+  if (omitted.length) parts.push(`(${omitted.length} other section${omitted.length === 1 ? "" : "s"} not included: ${omitted.slice(0, 25).join("; ")})`);
   return parts.join("\n\n");
 }

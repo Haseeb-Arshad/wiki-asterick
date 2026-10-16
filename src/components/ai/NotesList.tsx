@@ -1,10 +1,12 @@
+import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import type { AiNote } from "../../../shared/types";
-import { followUpOn, modelLabel, useAsk } from "../../lib/assistant";
+import { closeNotesDrawer, followUpOn, modelLabel, useAsk } from "../../lib/assistant";
 import { formatRelative } from "../../lib/format";
+import { refLink } from "../../lib/links";
 import { toast } from "../../lib/toast";
 import { Icon } from "../Icon";
-import { Markdown } from "../Markdown";
+import { Markdown, type PageRef } from "../Markdown";
 
 export interface NoteActions {
   onRemove: (note: AiNote) => void;
@@ -37,7 +39,7 @@ export function NotesList({ notes, empty, ...actions }: { notes: AiNote[]; empty
 }
 
 export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFollowUp = true }: { note: AiNote; defaultOpen: boolean } & NoteActions) {
-  const { activeNoteId, revealTick } = useAsk();
+  const { activeNoteId, revealTick, drawerOpen } = useAsk();
   const [open, setOpen] = useState(defaultOpen);
   const [showSources, setShowSources] = useState(false);
   const active = note.id === activeNoteId;
@@ -65,9 +67,23 @@ export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFo
   }
 
   const webSources = note.sources.filter((source) => source.kind === "web");
+  // Sections of the page the question was asked on link into it instead of out to the wiki.
+  const page: PageRef | undefined = note.wiki === "general" ? undefined : { wiki: note.wiki, title: note.articleTitle, url: note.url };
+  const sectionCount = note.sources.filter((source) => source.sectionId).length;
+  const otherCount = note.sources.length - sectionCount;
+  const sourcesLabel = [sectionCount && `${sectionCount} article ${sectionCount === 1 ? "section" : "sections"}`, otherCount && `${otherCount} ${otherCount === 1 ? "source" : "sources"}`]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <article className={`ai-note ${open ? "is-open" : ""} ${active ? "is-active" : ""}`} data-note-id={note.id}>
+    <article
+      className={`ai-note ${open ? "is-open" : ""} ${active ? "is-active" : ""}`}
+      data-note-id={note.id}
+      onClick={(event) => {
+        // In the narrow-screen drawer, jumping to a section should reveal it, not sit under the drawer.
+        if (drawerOpen && (event.target as HTMLElement).closest("a.cite:not([target]), .ai-note-source-list a:not([target])")) closeNotesDrawer();
+      }}
+    >
       <button type="button" className="ai-note-q" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
         <Icon name="sparkle" size={14} className="ai-note-q-mark" />
         <span>{note.question}</span>
@@ -80,7 +96,7 @@ export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFo
       )}
 
       <div className="ai-note-answer markdown">
-        <Markdown text={note.answer} sources={note.sources} />
+        <Markdown text={note.answer} sources={note.sources} page={page} />
       </div>
       {!open && (
         <button type="button" className="ai-note-more" onClick={() => setOpen(true)}>
@@ -98,7 +114,7 @@ export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFo
                     source.favicon ? <img key={source.url} src={source.favicon} alt="" width={14} height={14} loading="lazy" /> : <i key={source.url}>{source.site.slice(0, 1)}</i>
                   )}
                 </span>
-                {note.sources.length} {note.sources.length === 1 ? "source" : "sources"}
+                {sourcesLabel}
                 <Icon name="chevronDown" size={13} />
               </button>
               {showSources && (
@@ -106,10 +122,17 @@ export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFo
                   {note.sources.map((source) => (
                     <li key={source.n}>
                       <span className="ai-note-source-n">{source.n}</span>
-                      <a href={source.url} target="_blank" rel="noopener noreferrer nofollow">
-                        <strong>{source.title}</strong>
-                        <span>{source.site}</span>
-                      </a>
+                      {source.sectionId && page ? (
+                        <Link {...refLink(page, source.sectionId)}>
+                          <strong>{source.title}</strong>
+                          <span>Jump to this section</span>
+                        </Link>
+                      ) : (
+                        <a href={source.url} target="_blank" rel="noopener noreferrer nofollow">
+                          <strong>{source.title}</strong>
+                          <span>{source.site}</span>
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ol>

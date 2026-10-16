@@ -158,3 +158,33 @@ export function absoluteUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return url.startsWith("//") ? `https:${url}` : url;
 }
+
+/**
+ * The first web address in some shared text ("Great read https://example.com/post, thanks").
+ * Other apps share links as a title, some text, or a bare address, in any combination.
+ */
+export function extractLink(text: string | null | undefined): string | null {
+  const match = (text ?? "").match(/https?:\/\/[^\s<>"]+/i);
+  if (!match) return null;
+  // Sentence punctuation and closing brackets right after the address aren't part of it.
+  const link = match[0].replace(/[.,;:!?)\]}'"]+$/, "");
+  try {
+    return new URL(link).toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A passage cut down to fit in a shared link: whitespace collapsed, and anything over
+ * `max` characters ended at a whole word. The link still finds it, since the start of a
+ * passage is a quote of the passage.
+ */
+export function clipQuote(text: string, max = 240): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  // Already ended on a whole word.
+  if (/\s/.test(flat[max])) return cut.trimEnd();
+  return (cut.includes(" ") ? cut.replace(/\s+\S*$/, "") : cut).trimEnd();
+}

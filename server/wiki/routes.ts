@@ -78,6 +78,11 @@ const summaries =memoizeAsync(new TtlCache<Payload>(1000, 30 * MINUTE), async (k
   return toPayload(summary satisfies ArticleSummary);
 });
 
+/** The short summary of a page, from the cache the link previews use (for page metadata). */
+export async function loadWikiSummary(wiki: string, title: string): Promise<ArticleSummary> {
+  return readPayload<ArticleSummary>(await summaries(`${wiki}|${title}`));
+}
+
 const searches = memoizeAsync(new TtlCache<Payload>(500, 10 * MINUTE), async (key) => {
   const [mode, wiki, ...rest] = key.split("|");
   const query = rest.join("|");

@@ -3,11 +3,12 @@ import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { onSessionEnded } from "../lib/api";
 import { sessionQuery, useSession } from "../lib/auth";
-import { useHotkeys } from "../lib/hooks";
+import { useDocumentTitle, useHotkeys } from "../lib/hooks";
 import { useGuestLibrarySync } from "../lib/library";
 import { articleLink } from "../lib/links";
 import { useApplyTheme, wikiStore } from "../lib/preferences";
 import { fetchRandomArticle } from "../lib/queries";
+import { promptInstall, useCanInstall } from "../lib/install";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
 import { aiStatusQuery, focusAskBar } from "../lib/assistant";
@@ -68,6 +69,7 @@ export function RootLayout() {
 function AppFooter() {
   const navigate = useNavigate();
   const wiki = wikiStore.use();
+  const canInstall = useCanInstall();
 
   return (
     <footer className="app-footer">
@@ -104,6 +106,11 @@ function AppFooter() {
           >
             Surprise me
           </button>
+          {canInstall && (
+            <button type="button" onClick={() => void promptInstall()}>
+              Install app
+            </button>
+          )}
           <a href="https://wikimediafoundation.org/support/" target="_blank" rel="noopener noreferrer">
             Support Wikipedia <Icon name="external" size={12} />
           </a>
@@ -114,6 +121,7 @@ function AppFooter() {
 }
 
 export function NotFound() {
+  useDocumentTitle("Page not found");
   return (
     <section className="message-page">
       <AsteriskMark size={48} />

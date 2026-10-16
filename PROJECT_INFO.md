@@ -39,6 +39,24 @@ Video has no thumbnail equivalent, so playback depends on reaching `upload.wikim
 
 Highlights store the quoted text plus about 32 characters of context on each side, the W3C text-quote approach. `src/lib/text-anchor.ts` finds them again even if positions shift, and paints them with the CSS Custom Highlight API, so the article DOM is never modified. Browsers without that API still list highlights in the notes panel.
 
+## Offline reading and the service worker
+
+`public/sw.js` is plain JavaScript (it is copied to the site root, not bundled) and is registered only in production builds (`src/lib/offline.ts`).
+
+- Built files, fonts and icons are cached as they are used; page navigations go to the network and fall back to the cached app shell (`/`), which then routes itself.
+- Saved articles live in the `wa-offline-v1` cache, separate from the app cache so an update never clears them. The key is the exact article request path (`articlePath()` / `webArticlePath()` in `src/lib/queries.ts`); keep those helpers as the only place that builds it.
+- Saving posts a message to the worker, which stores the article JSON and replies, then fetches the article's Wikimedia images (CORS copies only; opaque copies count heavily against the storage quota) and replies again. The page confirms "Available offline" on the first reply. At most 600 images are kept, oldest dropped first.
+- Bump `VERSION` in `sw.js` only when the worker's own caching rules change.
+- The in-app preview browser cannot run service workers. Test with a production build in a real browser (`npm run smoke` does).
+
+## Link previews and 404s
+
+Every route is the same `index.html`. In production `server/app.ts` fills in each article's (or web page's) title, description, image, canonical address and Twitter card (`server/meta.ts`), from the cached summary. A lookup failure must never stop the app loading, so it falls back to the plain page. `isKnownPath()` lists the app's routes: add a new route there, or its address will answer 404.
+
+## Shared code lives in `shared/`
+
+Anything the server's tests need to import must live in `shared/` (or `server/`). The server's TypeScript config compiles `tests/` with `nodenext` resolution and no browser types, so a test that imports from `src/` fails `tsc -b`. Files in `shared/` import each other with `.js` extensions and must not touch `window` or `document`.
+
 ## Checks before shipping
 
 ```bash
@@ -56,3 +74,9 @@ npm run lint
 ```bash
 npm run build
 ```
+
+```bash
+npm run smoke
+```
+
+`npm run smoke` needs the build and a Chrome or Edge (set `CHROME_PATH` if it is not found). Add `-- --live` to include the checks that read real Wikipedia articles. CI runs all of these.

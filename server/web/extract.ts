@@ -106,8 +106,38 @@ interface CleanResult {
   wordCount: number;
 }
 
+const squash = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
+
+/** The header shows at most this many characters of the summary line. */
+const SUMMARY_LENGTH = 300;
+
+/**
+ * Pages often open by repeating what the reader's header already shows: the title set as a
+ * picture (its alt text is the title) and a first paragraph that is word for word the summary
+ * line. Either is dropped when it appears at the very top. A paragraph longer than the header
+ * can show stays, so no text is lost.
+ */
+function dropRepeatedOpening($: cheerio.CheerioAPI, $root: ReturnType<cheerio.CheerioAPI>, title: string, description: string) {
+  const wantedTitle = squash(title);
+  const wantedSummary = squash(description);
+  for (const el of $root.find("img, p, h1, h2, h3").toArray().slice(0, 5)) {
+    if (!isElement(el)) continue;
+    const $el = $(el);
+    if (el.tagName === "img") {
+      if (!wantedTitle || squash($el.attr("alt") ?? "") !== wantedTitle) continue;
+      const wrapper = $el.parent();
+      // A link or paragraph that held only the picture goes with it.
+      if (wrapper.is("a, p, center, figure") && wrapper.find("img").length === 1 && !squash(wrapper.text())) wrapper.remove();
+      else $el.remove();
+    } else if (el.tagName === "p" && wantedSummary.length >= 40 && wantedSummary.length <= SUMMARY_LENGTH && squash($el.text()) === wantedSummary) {
+      $el.remove();
+      break;
+    }
+  }
+}
+
 /** Sanitizes reader-mode HTML and splits it into sections at its headings. */
-export function cleanContent(contentHtml: string, pageUrl: string, title: string): CleanResult {
+export function cleanContent(contentHtml: string, pageUrl: string, title: string, description = ""): CleanResult {
   const $ = cheerio.load(`<div id="wa-root">${contentHtml}</div>`);
   const $root = $("#wa-root");
   const media: MediaItem[] = [];
@@ -167,6 +197,7 @@ export function cleanContent(contentHtml: string, pageUrl: string, title: string
   // The title usually repeats as the first heading.
   const firstHeading = $root.find("h1, h2").first();
   if (firstHeading.length && firstHeading.text().trim().toLowerCase() === title.trim().toLowerCase()) firstHeading.remove();
+  dropRepeatedOpening($, $root, title, description);
 
   $root.find("*").each((_, el) => {
     if (!isElement(el)) return;
@@ -373,7 +404,7 @@ export function assemble(input: {
   dir?: "rtl" | "ltr";
 }): WikiArticle {
   const host = new URL(input.url).hostname.replace(/^www\./, "");
-  const { sections, media, wordCount } = cleanContent(input.contentHtml, input.url, input.title);
+  const { sections, media, wordCount } = cleanContent(input.contentHtml, input.url, input.title, input.description);
   const lang = input.lang || "en";
 
   return {
