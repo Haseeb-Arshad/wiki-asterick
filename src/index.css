@@ -2047,6 +2047,27 @@ a:hover > .read-more svg,
   font-size: 15px;
 }
 
+/* Press-and-hold previews: no native link callout over the card, and a clear way in. */
+.prose a[data-wiki-title] {
+  -webkit-touch-callout: none;
+}
+
+.preview-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
 .reading-settings-foot {
   padding-top: 4px;
 }

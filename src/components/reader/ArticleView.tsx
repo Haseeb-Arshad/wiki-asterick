@@ -76,7 +76,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   const [refTarget, setRefTarget] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [footnote, setFootnote] = useState<{ note: Footnote; anchor: HTMLElement } | null>(null);
-  const [preview, setPreview] = useState<{ wiki: string; title: string; anchor: HTMLElement } | null>(null);
+  const [preview, setPreview] = useState<{ wiki: string; title: string; anchor: HTMLElement; touch?: boolean } | null>(null);
   const [selection, setSelection] = useState<Range | null>(null);
   // `fallback` positions the editor before a brand-new highlight has been painted.
   const [openHighlight, setOpenHighlight] = useState<{ id: string; editing: boolean; fallback?: DOMRect } | null>(null);
@@ -400,6 +400,13 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     const target = event.target as HTMLElement;
     if (event.defaultPrevented || event.button !== 0) return;
 
+    // Letting go after a hold opened a preview must not also follow the link.
+    if (heldOpen.current) {
+      heldOpen.current = false;
+      event.preventDefault();
+      return;
+    }
+
     const footnoteLink = target.closest<HTMLAnchorElement>("a[data-fn]");
     if (footnoteLink) {
       event.preventDefault();
@@ -462,9 +469,13 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     }
   }
 
-  // ---- hover previews for links (mouse only) -----------------------------------------------
+  // ---- previews for links: hover with a mouse, press and hold on touch screens ----------------
   const previewTimer = useRef(0);
   const hideTimer = useRef(0);
+  const pressTimer = useRef(0);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  // True from the moment a hold opens a preview until the next press, so its click is ignored.
+  const heldOpen = useRef(false);
 
   function onBodyPointerOver(event: React.PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "mouse") return;
@@ -478,6 +489,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   }
 
   function onBodyPointerOut(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
     const link = (event.target as HTMLElement).closest("a[data-wiki-title]");
     if (!link || link.contains(event.relatedTarget as Node | null)) return;
     window.clearTimeout(previewTimer.current);
@@ -485,10 +497,53 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   }
 
   function onBodyPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    // Start loading the next article the moment a link is pressed.
     const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[data-wiki-title]");
-    if (link) void queryClient.prefetchQuery(articleQuery(link.dataset.wiki ?? article.wiki, link.dataset.wikiTitle ?? ""));
+    heldOpen.current = false;
+    window.clearTimeout(pressTimer.current);
+    if (!link) return;
+    const wiki = link.dataset.wiki ?? article.wiki;
+    const title = link.dataset.wikiTitle ?? "";
+    // Start loading the next article the moment a link is pressed.
+    void queryClient.prefetchQuery(articleQuery(wiki, title));
+
+    if (event.pointerType === "mouse") return;
+    pressStart.current = { x: event.clientX, y: event.clientY };
+    pressTimer.current = window.setTimeout(() => {
+      heldOpen.current = true;
+      pressStart.current = null;
+      navigator.vibrate?.(8);
+      setPreview({ wiki, title, anchor: link, touch: true });
+    }, 450);
   }
+
+  function onBodyPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const start = pressStart.current;
+    // Scrolling or dragging is not a hold.
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) {
+      window.clearTimeout(pressTimer.current);
+      pressStart.current = null;
+    }
+  }
+
+  function endPress() {
+    window.clearTimeout(pressTimer.current);
+    pressStart.current = null;
+  }
+
+  function onBodyContextMenu(event: React.MouseEvent<HTMLDivElement>) {
+    // The browser's own link menu would cover the preview that a hold just opened.
+    if (heldOpen.current || (coarsePointer() && (event.target as HTMLElement).closest("a[data-wiki-title]"))) event.preventDefault();
+  }
+
+  // A preview opened by a hold closes when you tap anywhere outside it.
+  useEffect(() => {
+    if (!preview?.touch) return;
+    const onDown = (event: PointerEvent) => {
+      if (!(event.target as HTMLElement).closest(".preview-card")) setPreview(null);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [preview]);
 
   // ---- actions ----------------------------------------------------------------------------
   function toggleSave() {
@@ -730,6 +785,10 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           onPointerOver={onBodyPointerOver}
           onPointerOut={onBodyPointerOut}
           onPointerDown={onBodyPointerDown}
+          onPointerMove={onBodyPointerMove}
+          onPointerUp={endPress}
+          onPointerCancel={endPress}
+          onContextMenu={onBodyContextMenu}
         >
           <ArticleBody outline={outline} />
         </div>
@@ -823,10 +882,23 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
           wiki={preview.wiki}
           title={preview.title}
           anchor={preview.anchor}
-          onPointerEnter={() => window.clearTimeout(hideTimer.current)}
-          onPointerLeave={() => {
-            hideTimer.current = window.setTimeout(() => setPreview(null), 220);
-          }}
+          // Touch previews stay until you tap away or open them; only a mouse hovers.
+          onPointerEnter={preview.touch ? undefined : () => window.clearTimeout(hideTimer.current)}
+          onPointerLeave={
+            preview.touch
+              ? undefined
+              : () => {
+                  hideTimer.current = window.setTimeout(() => setPreview(null), 220);
+                }
+          }
+          onOpen={
+            preview.touch
+              ? () => {
+                  setPreview(null);
+                  navigate(articleLink(preview.wiki, preview.title));
+                }
+              : undefined
+          }
         />
       )}
       {selection && !openHighlight && (
