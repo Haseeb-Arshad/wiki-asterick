@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { AiNote, Bookmark, Highlight, HistoryEntry, LibrarySnapshot } from "../shared/types.ts";
-import { filterSnapshot, libraryToJson, libraryToMarkdown, matchesQuery, sortBookmarks, sortHistory } from "../src/lib/library-tools.ts";
+import { filterSnapshot, libraryToJson, libraryToMarkdown, matchesQuery, sortBookmarks, sortHistory } from "../shared/library-tools.ts";
 
 const bookmark = (title: string, createdAt: number, extra: Partial<Bookmark> = {}): Bookmark => ({
   wiki: "en.wikipedia.org",

@@ -4,7 +4,7 @@ import type { AiNote, Bookmark, Highlight, HistoryEntry, LibrarySnapshot } from 
 import { useSession } from "../lib/auth";
 import { formatDate, formatRelative, pluralize } from "../lib/format";
 import { useLibrary } from "../lib/library";
-import { filterSnapshot, libraryToJson, libraryToMarkdown, sortBookmarks, sortHistory, type HistorySort, type SavedSort } from "../lib/library-tools";
+import { filterSnapshot, libraryToJson, libraryToMarkdown, sortBookmarks, sortHistory, type HistorySort, type SavedSort } from "../../shared/library-tools";
 import { refLink } from "../lib/links";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";

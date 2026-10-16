@@ -1,5 +1,5 @@
-import type { AiNote, Bookmark, Highlight, HistoryEntry, LibrarySnapshot } from "../../shared/types";
-import { wikiArticleUrl } from "../../shared/wiki";
+import type { AiNote, Bookmark, Highlight, HistoryEntry, LibrarySnapshot } from "./types.js";
+import { wikiArticleUrl } from "./wiki.js";
 
 // ---- search ---------------------------------------------------------------------------
 
