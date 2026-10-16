@@ -114,18 +114,21 @@ self.addEventListener("message", (event) => {
   const data = event.data || {};
   const reply = (payload) => event.ports && event.ports[0] && event.ports[0].postMessage(payload);
   if (data.type === "save-offline") {
-    event.waitUntil(saveArticle(data).then((images) => reply({ ok: true, images }), () => reply({ ok: false })));
+    event.waitUntil(saveArticle(data, reply).then((images) => reply({ ok: true, stage: "done", images }), () => reply({ ok: false })));
   } else if (data.type === "forget-offline") {
     event.waitUntil(caches.open(OFFLINE).then((cache) => cache.delete(data.article, { ignoreVary: true })).then(() => reply({ ok: true }), () => reply({ ok: false })));
   }
 });
 
-async function saveArticle({ article, images = [] }) {
+// Replies twice: as soon as the article text is stored (the page can confirm then), and when the images
+// are done. A page with many images can take a while, and the text is what makes it readable offline.
+async function saveArticle({ article, images = [] }, reply) {
   const offline = await caches.open(OFFLINE);
   const request = new Request(article, { headers: { "x-wa-request": "1" }, credentials: "same-origin" });
   const response = await fetch(request);
   if (!response.ok) throw new Error(`article ${response.status}`);
   await offline.put(request, response);
+  reply({ ok: true, stage: "text" });
 
   // Images are best effort: a few failing never blocks the text. Only readable (CORS) copies are
   // stored, since opaque ones count hugely against the storage quota.

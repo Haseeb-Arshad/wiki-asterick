@@ -74,7 +74,8 @@ export function useOfflineKeys(): ReadonlySet<string> {
 
 // ---- saving and forgetting ----------------------------------------------------------------------
 
-type WorkerReply = { ok: boolean; images?: number };
+/** The worker answers a save when the text is stored ("text"), then again when the images are too ("done"). */
+type WorkerReply = { ok: boolean; stage?: "text" | "done"; images?: number };
 
 async function askWorker(message: Record<string, unknown>, timeoutMs: number): Promise<WorkerReply> {
   if (!offlineSupported) return { ok: false };
@@ -114,7 +115,8 @@ export function articleImages(article: WikiArticle): string[] {
 /** Stores the article and its images for offline reading. Resolves true when the text is safely stored. */
 export async function saveArticleOffline(article: WikiArticle, webUrl?: string): Promise<boolean> {
   const path = articleRequestPath(article, webUrl);
-  const reply = await askWorker({ type: "save-offline", article: path, images: article.kind === "web" ? [] : articleImages(article) }, 45_000);
+  // Resolves on the first answer, when the text is stored; the images carry on in the background.
+  const reply = await askWorker({ type: "save-offline", article: path, images: article.kind === "web" ? [] : articleImages(article) }, 30_000);
   if (reply.ok) await refreshKeys();
   return reply.ok;
 }
