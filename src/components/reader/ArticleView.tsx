@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
-import { FEATURED_LANGUAGES, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
+import { resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
 import { useHotkeys, useMediaQuery } from "../../lib/hooks";
@@ -30,6 +30,7 @@ import { AsteriskMark } from "../AsteriskIcon";
 import { Icon } from "../Icon";
 import { Lightbox } from "../Lightbox";
 import { downloadText, articleToMarkdown, notesToMarkdown } from "./exporters";
+import { languageName, PROJECT_NAMES } from "./labels";
 import { flattenSections, scrollToSection, type OutlineEntry } from "./outline";
 import { ContentsSheet, LanguagesSheet, MediaSheet, NotesSheet, ReferencesSheet, ShortcutsDialog, TocList } from "./ReaderPanels";
 import { ReadingSettings } from "./ReadingSettings";
@@ -37,27 +38,6 @@ import { FootnotePopover, HighlightPopover, LinkPreview, SelectionToolbar } from
 import { useReadAloud } from "./useReadAloud";
 
 type Panel = "contents" | "notes" | "references" | "media" | "languages" | "reading" | "shortcuts" | "more" | null;
-
-const PROJECT_NAMES: Record<string, string> = {
-  wikipedia: "Wikipedia",
-  wiktionary: "Wiktionary",
-  wikivoyage: "Wikivoyage",
-  wikibooks: "Wikibooks",
-  wikiquote: "Wikiquote",
-  wikinews: "Wikinews",
-  wikiversity: "Wikiversity",
-  wikisource: "Wikisource",
-};
-
-function languageName(lang: string): string {
-  const featured = FEATURED_LANGUAGES.find((language) => language.code === lang)?.name;
-  if (featured) return featured;
-  try {
-    return new Intl.DisplayNames([lang], { type: "language" }).of(lang) ?? lang;
-  } catch {
-    return lang;
-  }
-}
 
 const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
 
