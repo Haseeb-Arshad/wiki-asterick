@@ -25,6 +25,7 @@ function Drawer({ title }: { title: string | null }) {
     <Sheet
       side="left"
       className="notes-sheet"
+      alsoFocusable=".askbar-wrap"
       title="AI notes"
       subtitle={title ? `${pluralize(notes.length, "question")} about ${title}` : `${pluralize(notes.length, "general question")}`}
       onClose={closeNotesDrawer}

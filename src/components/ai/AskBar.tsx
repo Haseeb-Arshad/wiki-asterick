@@ -193,7 +193,7 @@ function AskBarInner({ webSearch }: { webSearch: boolean }) {
 
   return (
     <div className={`askbar-wrap ${compact ? "is-compact" : ""}`}>
-      {run && <ThinkingCard run={run} />}
+      {run && <ThinkingCard key={run.id} run={run} />}
 
       {prompts.length > 0 && (
         <div className="ask-prompts" role="list">
@@ -216,7 +216,7 @@ function AskBarInner({ webSearch }: { webSearch: boolean }) {
 
       <div
         ref={barRef}
-        className={`askbar ${focused ? "is-focused" : ""} ${dictation.listening ? "is-listening" : ""} ${running ? "is-running" : ""}`}
+        className={`askbar ${focused ? "is-focused" : ""} ${focused || draft ? "is-composing" : ""} ${dictation.listening ? "is-listening" : ""} ${running ? "is-running" : ""}`}
         onClick={(event) => {
           if (event.target === event.currentTarget) inputRef.current?.focus();
         }}
