@@ -119,6 +119,14 @@ AI answers are optional. Add keys to `.env` (see `.env.example`) and restart the
 - `OPENROUTER_API_KEY` enables answers. Set a spending limit on the key in the OpenRouter dashboard.
 - `EXA_API_KEY` enables live web search, "Keep reading" for web pages, and reading pages that block direct fetching.
 - `AI_QUICK_MODEL` and `AI_DEEP_MODEL` choose the models (defaults: `anthropic/claude-haiku-5.5` and `openai/gpt-6-luna`).
+- `DECISION_MODEL` (default `microsoft/microsoft-decision-1`, same OpenRouter key) is a decision model: it writes no text, it returns probabilities for fixed answers in about a second, at about $0.04 per million input tokens. WikiAsterisk uses it to:
+  - route each question to the quick or the reasoning model, and decide on web search, in any language (the English keyword rules are the fallback);
+  - check every answer against its sources ("Checked against its sources" or "Some of this isn't in its sources" on the note);
+  - tidy pages opened from shared links: clutter blocks at the edges (share buttons, sign-up prompts, credits) and junk images (logos, avatars, badges) are removed, and paywalled previews get a notice;
+  - read a search's intent and language, and suggest Wiktionary for definitions, Wikivoyage for trips, Wikiquote for quotes, or the Wikipedia in the language you typed;
+  - keep sexually explicit entries off the home page's Trending list.
+
+  Each use falls back to the old behaviour if the model is slow or unavailable. Set `DECISION_MODEL=off` to turn them all off, or `typesafe/jev-1.14` to use TypeSafe's Jev instead.
 
 With Anthropic models the instructions and article sources are marked for the provider's prompt cache, so follow-up questions on the same article are cheaper and faster (the server log shows `cached=` token counts).
 
