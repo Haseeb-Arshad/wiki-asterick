@@ -6,6 +6,7 @@ import { formatDate, formatRelative, pluralize } from "../lib/format";
 import { useLibrary } from "../lib/library";
 import { filterSnapshot, libraryToJson, libraryToMarkdown, sortBookmarks, sortHistory, type HistorySort, type SavedSort } from "../../shared/library-tools";
 import { refLink } from "../lib/links";
+import { refRequestPath, useOfflineKeys } from "../lib/offline";
 import { setPaletteOpen } from "../lib/search";
 import { toast } from "../lib/toast";
 import { NotesList } from "./ai/NotesList";
@@ -255,6 +256,7 @@ function SavedList({ library, items, sort, onSort }: { library: LibraryApi; item
 }
 
 function SavedTable({ library, items }: { library: LibraryApi; items: Bookmark[] }) {
+  const offline = useOfflineKeys();
   return (
     <table className="index-table">
       <thead>
@@ -274,6 +276,11 @@ function SavedTable({ library, items }: { library: LibraryApi; items: Bookmark[]
           <tr key={`${item.wiki}:${item.title}`}>
             <td className="index-title">
               <Link {...refLink(item)}>{item.title}</Link>
+              {offline.has(refRequestPath(item)) && (
+                <span className="offline-tag" title="Saved on this device for reading without a connection">
+                  Offline
+                </span>
+              )}
               {item.description && <small>{item.description}</small>}
             </td>
             <td className="hide-sm">{sourceLabel(item.wiki)}</td>

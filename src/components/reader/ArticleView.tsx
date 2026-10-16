@@ -12,6 +12,7 @@ import { absoluteArticleUrl, articleLink } from "../../lib/links";
 import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
 import { useBarSlot } from "../../lib/bar-slot";
 import { formatRate, listenStore, nextRate } from "../../lib/listen";
+import { forgetArticleOffline, offlineSupported, saveArticleOffline } from "../../lib/offline";
 import { readingStore, readingStyle } from "../../lib/reading";
 import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
 import {
@@ -493,10 +494,20 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   function toggleSave() {
     const nowSaved = library.toggleBookmark(ref);
     setSavePulse((value) => value + 1);
-    toast(nowSaved ? (user || sessionLoading ? "Saved to your library" : "Saved in this browser") : "Removed from your library", {
+    const where = user || sessionLoading ? "Saved to your library" : "Saved in this browser";
+    toast(nowSaved ? where : "Removed from your library", {
       tone: nowSaved ? "success" : "neutral",
       action: nowSaved ? { label: "View", onClick: () => navigate({ to: "/library" }) } : undefined,
     });
+    if (!offlineSupported) return;
+    if (nowSaved) {
+      // Keep a copy for reading without a connection, and say so only once it is stored.
+      void saveArticleOffline(article, webUrl).then((stored) => {
+        if (stored) toast("Available offline", { tone: "success" });
+      });
+    } else {
+      void forgetArticleOffline(article, webUrl);
+    }
   }
 
   async function shareArticle() {

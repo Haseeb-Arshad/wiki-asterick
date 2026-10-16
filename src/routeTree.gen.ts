@@ -14,6 +14,7 @@ import { Route as AccountRouteImport } from "./routes/account"
 import { Route as ArticleRouteImport } from "./routes/article"
 import { Route as LibraryRouteImport } from "./routes/library"
 import { Route as SearchRouteImport } from "./routes/search"
+import { Route as ShareRouteImport } from "./routes/share"
 import { Route as SigninRouteImport } from "./routes/signin"
 import { Route as SignupRouteImport } from "./routes/signup"
 import { Route as WebRouteImport } from "./routes/web"
@@ -44,6 +45,11 @@ const SearchRoute = SearchRouteImport.update({
   path: "/search",
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareRoute = ShareRouteImport.update({
+  id: "/share",
+  path: "/share",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SigninRoute = SigninRouteImport.update({
   id: "/signin",
   path: "/signin",
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
   "/search": typeof SearchRoute
+  "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
   "/web": typeof WebRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
   "/search": typeof SearchRoute
+  "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
   "/web": typeof WebRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
   "/search": typeof SearchRoute
+  "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
   "/signup": typeof SignupRoute
   "/web": typeof WebRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | "/article"
     | "/library"
     | "/search"
+    | "/share"
     | "/signin"
     | "/signup"
     | "/web"
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | "/article"
     | "/library"
     | "/search"
+    | "/share"
     | "/signin"
     | "/signup"
     | "/web"
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | "/article"
     | "/library"
     | "/search"
+    | "/share"
     | "/signin"
     | "/signup"
     | "/web"
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   ArticleRoute: typeof ArticleRoute
   LibraryRoute: typeof LibraryRoute
   SearchRoute: typeof SearchRoute
+  ShareRoute: typeof ShareRoute
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
   WebRoute: typeof WebRoute
@@ -184,6 +197,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/share": {
+      id: "/share"
+      path: "/share"
+      fullPath: "/share"
+      preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/signin": {
       id: "/signin"
       path: "/signin"
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   ArticleRoute: ArticleRoute,
   LibraryRoute: LibraryRoute,
   SearchRoute: SearchRoute,
+  ShareRoute: ShareRoute,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
   WebRoute: WebRoute,

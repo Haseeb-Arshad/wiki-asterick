@@ -158,3 +158,19 @@ export function absoluteUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return url.startsWith("//") ? `https:${url}` : url;
 }
+
+/**
+ * The first web address in some shared text ("Great read https://example.com/post, thanks").
+ * Other apps share links as a title, some text, or a bare address, in any combination.
+ */
+export function extractLink(text: string | null | undefined): string | null {
+  const match = (text ?? "").match(/https?:\/\/[^\s<>"]+/i);
+  if (!match) return null;
+  // Sentence punctuation and closing brackets right after the address aren't part of it.
+  const link = match[0].replace(/[.,;:!?)\]}'"]+$/, "");
+  try {
+    return new URL(link).toString();
+  } catch {
+    return null;
+  }
+}

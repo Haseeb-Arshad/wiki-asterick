@@ -4428,6 +4428,17 @@ a:hover > .read-more svg,
   margin-bottom: 4px;
 }
 
+.offline-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
 .sort-select {
   display: inline-flex;
   align-items: center;
