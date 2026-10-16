@@ -1,14 +1,19 @@
 import type { ReactNode } from "react";
+import { LISTEN_DEFAULTS, LISTEN_RATES, formatRate, languageKey, listenStore } from "../../lib/listen";
 import { READING_DEFAULTS, READING_SIZES, readingStore, type LineWidth, type Paper, type ReadingPrefs, type Spacing, type TypeFace } from "../../lib/reading";
 import { Sheet } from "../Sheet";
 import { Icon } from "../Icon";
+import { readAloudSupported, useVoices } from "./useReadAloud";
 
-/** Text size, line width, typeface, spacing and paper for the article column. Applies everywhere. */
-export function ReadingSettings({ onClose }: { onClose: () => void }) {
+/** Text size, line width, typeface, spacing and paper for the article column, plus listening speed and voice. Applies everywhere. */
+export function ReadingSettings({ lang, onClose }: { lang: string; onClose: () => void }) {
   const prefs = readingStore.use();
+  const listen = listenStore.use();
+  const voices = useVoices(lang);
+  const voiceKey = languageKey(lang);
   const update = (patch: Partial<ReadingPrefs>) => readingStore.set((previous) => ({ ...previous, ...patch }));
   const sizeLabel = READING_SIZES[prefs.size].label;
-  const changed = JSON.stringify(prefs) !== JSON.stringify(READING_DEFAULTS);
+  const changed = JSON.stringify(prefs) !== JSON.stringify(READING_DEFAULTS) || JSON.stringify(listen) !== JSON.stringify(LISTEN_DEFAULTS);
 
   return (
     <Sheet title="Reading" subtitle="Applies to every article you open" onClose={onClose}>
@@ -84,8 +89,54 @@ export function ReadingSettings({ onClose }: { onClose: () => void }) {
           />
         </SettingRow>
 
+        {readAloudSupported && (
+          <>
+            <SettingRow label="Listening speed">
+              <Segmented<string>
+                label="Listening speed"
+                value={String(listen.rate)}
+                options={LISTEN_RATES.map((rate): [string, string] => [String(rate), formatRate(rate)])}
+                onChange={(rate) => listenStore.set((previous) => ({ ...previous, rate: Number(rate) }))}
+              />
+            </SettingRow>
+
+            {voices.length > 0 && (
+              <SettingRow label="Voice">
+                <select
+                  className="setting-select"
+                  aria-label="Voice"
+                  value={listen.voices[voiceKey] ?? ""}
+                  onChange={(event) =>
+                    listenStore.set((previous) => {
+                      const next = { ...previous.voices };
+                      if (event.target.value) next[voiceKey] = event.target.value;
+                      else delete next[voiceKey];
+                      return { ...previous, voices: next };
+                    })
+                  }
+                >
+                  <option value="">Browser default</option>
+                  {voices.map((voice) => (
+                    <option key={voice.voiceURI} value={voice.voiceURI}>
+                      {voice.name}
+                    </option>
+                  ))}
+                </select>
+              </SettingRow>
+            )}
+          </>
+        )}
+
         <div className="reading-settings-foot">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => readingStore.set(READING_DEFAULTS)} disabled={!changed}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              readingStore.set(READING_DEFAULTS);
+              listenStore.set(LISTEN_DEFAULTS);
+            }}
+            disabled={!changed}
+          >
             <Icon name="refresh" size={15} /> Reset to defaults
           </button>
         </div>

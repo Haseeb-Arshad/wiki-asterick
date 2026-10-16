@@ -2051,6 +2051,26 @@ a:hover > .read-more svg,
   padding-top: 4px;
 }
 
+.setting-select {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+}
+
+/* The "1.25×" chip beside Pause and Stop while listening. */
+.action-speed {
+  min-width: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .article-header {
   padding-top: clamp(32px, 6vw, 64px);
 }
@@ -6049,6 +6069,11 @@ a.cite:hover {
   text-decoration: underline dotted color-mix(in srgb, var(--brand) 75%, transparent);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
+}
+
+/* The sentence being read aloud. */
+::highlight(wa-speak) {
+  background-color: color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 ::highlight(wa-flash) {

@@ -11,6 +11,7 @@ import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
 import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, useAsk } from "../../lib/assistant";
 import { useBarSlot } from "../../lib/bar-slot";
+import { formatRate, listenStore, nextRate } from "../../lib/listen";
 import { readingStore, readingStyle } from "../../lib/reading";
 import { articleQuery, relatedQuery, similarPagesQuery } from "../../lib/queries";
 import {
@@ -543,6 +544,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
   const activeHighlight = openHighlight ? highlights.find((item) => item.id === openHighlight.id) : undefined;
   const showDock = pastHeader && !atEnd;
   const readingPrefs = readingStore.use();
+  const listenPrefs = listenStore.use();
 
   return (
     <div className="reader" style={readingStyle(readingPrefs)}>
@@ -601,9 +603,20 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
               </button>
             )}
             {readAloud.state !== "idle" && (
-              <button type="button" className="action-btn" onClick={readAloud.stop} aria-label="Stop reading aloud">
-                <Icon name="stop" size={16} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="action-btn action-speed"
+                  onClick={() => listenStore.set((previous) => ({ ...previous, rate: nextRate(previous.rate) }))}
+                  aria-label={`Listening speed ${formatRate(listenPrefs.rate)}. Change speed`}
+                  title="Listening speed"
+                >
+                  {formatRate(listenPrefs.rate)}
+                </button>
+                <button type="button" className="action-btn" onClick={readAloud.stop} aria-label="Stop reading aloud">
+                  <Icon name="stop" size={16} />
+                </button>
+              </>
             )}
             <button type="button" className="action-btn" onClick={shareArticle} title="Share">
               <Icon name="share" size={19} />
@@ -907,7 +920,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         />
       )}
       {panel === "languages" && <LanguagesSheet wiki={article.wiki} languages={article.languages} onClose={closePanel} />}
-      {panel === "reading" && <ReadingSettings onClose={closePanel} />}
+      {panel === "reading" && <ReadingSettings lang={article.lang} onClose={closePanel} />}
       {panel === "shortcuts" && <ShortcutsDialog onClose={closePanel} />}
 
       {lightbox !== null && (
