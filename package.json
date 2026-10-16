@@ -12,6 +12,7 @@
     "test": "tsx --test --test-reporter=spec \"tests/**/*.test.ts\"",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "smoke": "node scripts/smoke.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
