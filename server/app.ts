@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import cookieParser from "cookie-parser";
 import express from "express";
@@ -6,6 +6,7 @@ import { authRouter, readSession } from "./auth/routes.js";
 import { config } from "./config.js";
 import { HttpError, errorHandler, requireCsrfHeader } from "./http.js";
 import { libraryRouter } from "./library.js";
+import { injectMeta, isKnownPath, pageMeta } from "./meta.js";
 import { aiRouter } from "./ai/routes.js";
 import { webRouter } from "./web/routes.js";
 import { wikiRouter } from "./wiki/routes.js";
@@ -72,10 +73,18 @@ export function createApp() {
         },
       })
     );
-    app.get("*", (_req, res) => {
+    // Every page is the same app shell, but link previews and search engines read the HTML, so an
+    // article gets its own title, description and image, and addresses the app doesn't have answer 404.
+    const template = readFileSync(indexHtml, "utf8");
+    app.get("*", async (req, res) => {
       res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
       res.setHeader("Cache-Control", "no-cache");
-      res.sendFile(indexHtml);
+      const meta = await pageMeta(req).catch(() => null);
+      const origin = `${req.protocol}://${req.get("host")}`;
+      res
+        .status(meta?.status ?? (isKnownPath(req.path) ? 200 : 404))
+        .type("html")
+        .send(meta ? injectMeta(template, meta, origin) : template);
     });
   }
 
