@@ -1,7 +1,10 @@
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { config } from "../config.js";
-import { HttpError, rateLimit, readString } from "../http.js";
+import type { SearchIntent } from "../../shared/types.js";
+import { HttpError, TtlCache, memoizeAsync, rateLimit, readString } from "../http.js";
 import { buildContextPassages, loadArticle, readContextRef } from "./context.js";
+import { decisionsEnabled } from "./decisions.js";
+import { checkGrounded, planAnswer, readSearchIntent } from "./judgements.js";
 import { searchWeb, type WebResult } from "./exa.js";
 import { streamChat, type ChatMessage, type ContentPart } from "./openrouter.js";
 
@@ -167,7 +170,38 @@ const limitGuests: RequestHandler = (req, res, next) => (req.auth ? next() : gue
 export const aiRouter = Router();
 
 aiRouter.get("/status", (_req, res) => {
-  res.json({ enabled: Boolean(config.openRouterApiKey), webSearch: Boolean(config.exaApiKey) });
+  res.json({ enabled: Boolean(config.openRouterApiKey), webSearch: Boolean(config.exaApiKey), decisions: decisionsEnabled() });
+});
+
+// ---- what a search is for -------------------------------------------------------------------------
+
+const intentLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 90,
+  key: (req) => req.auth?.userId ?? req.ip ?? "anonymous",
+  message: "Too many searches in a short time. Try again in a moment.",
+});
+
+// Failures throw, so they are never cached; the same query asked again tries again.
+const intents = memoizeAsync(new TtlCache<SearchIntent>(5000, 24 * 60 * 60_000), async (query) => {
+  const intent = await readSearchIntent(query);
+  if (!intent) throw new Error("no intent");
+  return intent;
+});
+
+/** The intent and language of a search, for suggesting the right wiki. `{ intent: null }` when unknown. */
+aiRouter.get("/intent", intentLimiter, async (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim().replace(/\s+/g, " ").slice(0, 200) : "";
+  if (!decisionsEnabled() || query.length < 3) {
+    res.json({ intent: null });
+    return;
+  }
+  try {
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.json({ intent: await intents(query.toLowerCase()) });
+  } catch {
+    res.json({ intent: null });
+  }
 });
 
 aiRouter.post("/ask", askLimiter, limitGuests, async (req: Request, res: Response) => {
@@ -184,8 +218,10 @@ aiRouter.post("/ask", askLimiter, limitGuests, async (req: Request, res: Respons
     const selection = typeof body.selection === "string" ? body.selection.trim().slice(0, 1500) : "";
     const contextRef = readContextRef(body.context);
     const priorNotes = readPriorNotes(body.notes);
-    const mode = chooseMode(question, body.mode);
-    const useWeb = Boolean(config.exaApiKey) && wantsWebSearch(question, Boolean(contextRef), body.web);
+    const rules = {
+      mode: chooseMode(question, body.mode),
+      web: Boolean(config.exaApiKey) && wantsWebSearch(question, Boolean(contextRef), body.web),
+    };
     if (!config.openRouterApiKey) throw new HttpError(503, "AI answers aren't set up on this server yet.", "ai_missing");
 
     res.status(200);
@@ -195,18 +231,32 @@ aiRouter.post("/ask", askLimiter, limitGuests, async (req: Request, res: Respons
     res.flushHeaders();
     started = true;
 
-    const model = mode === "deep" ? config.aiDeepModel : config.aiQuickModel;
-    write(res, { type: "meta", mode, model, web: useWeb });
-
     const sources: AskSource[] = [];
     const sourceBlocks: string[] = [];
 
+    // Start reading the article while the question is routed.
     const articleTask = contextRef
       ? loadArticle(contextRef).catch((error) => {
           console.error("[ai] context failed", error);
           return null;
         })
       : Promise.resolve(null);
+
+    // The decision model picks the model and web search for questions in any language; the
+    // English keyword rules are the fallback, and settings the reader chose always win.
+    const plan = decisionsEnabled()
+      ? await planAnswer(question, {
+          hasArticle: Boolean(contextRef),
+          requestedMode: body.mode === "quick" || body.mode === "deep" ? body.mode : "auto",
+          requestedWeb: body.web === "on" || body.web === "off" ? body.web : "auto",
+          webAvailable: Boolean(config.exaApiKey),
+          rules,
+        })
+      : { ...rules, by: "rules" as const };
+    const mode = plan.mode;
+    const useWeb = plan.web;
+    const model = mode === "deep" ? config.aiDeepModel : config.aiQuickModel;
+    write(res, { type: "meta", mode, model, web: useWeb, routedBy: plan.by });
 
     if (contextRef) write(res, { type: "step", id: "read", label: contextRef.kind === "web" ? "Reading the page" : `Reading “${contextRef.title}”` });
     const article = await articleTask;
@@ -262,19 +312,32 @@ aiRouter.post("/ask", askLimiter, limitGuests, async (req: Request, res: Respons
     const asked = messages.map((message, index) => (index === messages.length - 1 ? { ...message, content: expandPrompt(message.content) } : message));
     const chat: ChatMessage[] = [systemMessage(model, systemParts(sourceBlocks.join("\n\n"), selection, priorNotes)), ...asked];
 
+    let answer = "";
     for await (const event of streamChat({
       model,
       messages: chat,
       reasoningEffort: mode === "deep" ? "high" : undefined,
-      maxTokens: mode === "deep" ? 6000 : 1400,
+      // The quick model can spend hidden reasoning tokens before it writes; at 1,400 a long,
+      // source-heavy question sometimes used them all and came back empty.
+      maxTokens: mode === "deep" ? 6000 : 3000,
       signal: controller.signal,
     })) {
-      if (event.type === "text") write(res, { type: "delta", text: event.text });
-      else if (event.type === "reasoning") write(res, { type: "reasoning", text: event.text });
+      if (event.type === "text") {
+        answer += event.text;
+        write(res, { type: "delta", text: event.text });
+      } else if (event.type === "reasoning") write(res, { type: "reasoning", text: event.text });
       else if (event.type === "usage") {
         console.log(`[ai] ${model} prompt=${event.promptTokens} cached=${event.cachedTokens} completion=${event.completionTokens}`);
         write(res, { type: "usage", promptTokens: event.promptTokens, completionTokens: event.completionTokens, cachedTokens: event.cachedTokens });
       }
+    }
+
+    // Check the finished answer against the sources it was given, so the note can say whether it
+    // stays within them. Skipped when there's nothing to check or the reader stopped the answer.
+    if (decisionsEnabled() && sourceBlocks.length && answer.trim() && !controller.signal.aborted) {
+      write(res, { type: "step", id: "check", label: "Checking against the sources" });
+      const grounded = await checkGrounded(sourceBlocks.join("\n\n"), answer);
+      write(res, { type: "check", grounded });
     }
 
     write(res, { type: "done" });

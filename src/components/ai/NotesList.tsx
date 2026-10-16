@@ -7,6 +7,7 @@ import { refLink } from "../../lib/links";
 import { toast } from "../../lib/toast";
 import { Icon } from "../Icon";
 import { Markdown, type PageRef } from "../Markdown";
+import { GroundedBadge } from "./ThinkingCard";
 
 export interface NoteActions {
   onRemove: (note: AiNote) => void;
@@ -145,6 +146,7 @@ export function NoteCard({ note, defaultOpen, onRemove, onRestore, onJump, canFo
               {formatRelative(note.createdAt)}
               {note.model && ` · ${modelLabel(note.model)}`}
             </span>
+            <GroundedBadge grounded={note.grounded} />
             <span className="ai-note-actions">
               {canFollowUp && (
                 <button type="button" className="ai-note-action" onClick={() => followUpOn(note)} title="Ask a follow-up">

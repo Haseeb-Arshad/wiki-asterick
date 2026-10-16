@@ -102,6 +102,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX ai_notes_article ON ai_notes(user_id, wiki, article_title);
   `,
+  // 4: whether an answer stays within its sources (a probability from the decision model).
+  `
+  ALTER TABLE ai_notes ADD COLUMN grounded REAL;
+  `,
 ];
 
 function migrate() {

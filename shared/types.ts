@@ -87,6 +87,8 @@ export interface WikiArticle {
   /** Web pages: publication name and author. */
   site?: string;
   byline?: string;
+  /** Web pages: "preview" when the page seems to show only the start of the article (a paywall or sign-up wall). */
+  notice?: "preview";
 }
 
 export interface ArticleSummary {
@@ -220,7 +222,18 @@ export interface AiNote {
   model: string;
   mode: "quick" | "deep";
   web: boolean;
+  /** Probability (0 to 1) that every claim in the answer is supported by its sources; absent when not checked. */
+  grounded?: number | null;
   createdAt: number;
+}
+
+/** What a search is for, read by the decision model. */
+export interface SearchIntent {
+  intent: "article" | "question" | "definition" | "travel" | "quotes";
+  intentConfidence: number;
+  /** A language code ("en", "ur", ...) or null when it's none of the featured languages. */
+  language: string | null;
+  languageConfidence: number;
 }
 
 export interface LibrarySnapshot {

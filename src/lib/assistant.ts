@@ -51,6 +51,8 @@ export interface AskRun {
   model: string;
   mode: "quick" | "deep";
   web: boolean;
+  /** Probability that the answer stays within its sources (from the checking model); undefined when not checked. */
+  grounded?: number | null;
   phase: "running" | "done" | "error";
   error?: string;
   startedAt: number;
@@ -85,7 +87,7 @@ export const webPreferenceStore = createPersistedStore<WebPreference>("wa-ai-web
 
 export const aiStatusQuery = queryOptions({
   queryKey: ["ai-status"],
-  queryFn: () => api<{ enabled: boolean; webSearch: boolean }>("/api/ai/status"),
+  queryFn: () => api<{ enabled: boolean; webSearch: boolean; decisions?: boolean }>("/api/ai/status"),
   staleTime: Infinity,
 });
 
@@ -253,7 +255,7 @@ export function reasoningHeadline(reasoning: string): string {
 }
 
 interface StreamEvent {
-  type: "meta" | "step" | "sources" | "reasoning" | "delta" | "usage" | "done" | "error";
+  type: "meta" | "step" | "sources" | "reasoning" | "delta" | "usage" | "check" | "done" | "error";
   [key: string]: unknown;
 }
 
@@ -377,6 +379,9 @@ export async function ask(question: string) {
           case "sources":
             updateRun(run.id, () => ({ sources: event.sources as AssistantSource[] }));
             break;
+          case "check":
+            updateRun(run.id, () => ({ grounded: typeof event.grounded === "number" ? event.grounded : null }));
+            break;
           case "reasoning":
             pendingReasoning += String(event.text);
             schedule();
@@ -437,10 +442,24 @@ function finish(id: string) {
     model: current.model,
     mode: current.mode,
     web: current.web,
+    ...(current.grounded !== undefined ? { grounded: current.grounded } : {}),
     createdAt: Date.now(),
   };
   host?.saveNote(note);
   updateRun(id, (run) => ({ phase: "done", finishedAt: Date.now(), steps: run.steps.map((step) => (step.state === "active" ? { ...step, state: "done" } : step)) }));
+}
+
+/**
+ * How to describe the sources check on an answer, or null to say nothing (not checked, or the
+ * checking model wasn't sure either way).
+ */
+export function groundedVerdict(grounded: number | null | undefined): { tone: "ok" | "warn"; label: string; detail: string } | null {
+  if (typeof grounded !== "number") return null;
+  if (grounded >= 0.7) return { tone: "ok", label: "Checked against its sources", detail: "A checking model found the answer's claims in the sources it cites." };
+  if (grounded < 0.35) {
+    return { tone: "warn", label: "Some of this isn't in its sources", detail: "A checking model found claims the cited sources don't support. They may be general knowledge or mistakes." };
+  }
+  return null;
 }
 
 export function stopAsk() {

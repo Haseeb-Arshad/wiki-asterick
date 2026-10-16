@@ -10,6 +10,7 @@ const KIND_ICON: Record<SearchOption["kind"], IconName> = {
   recent: "clock",
   action: "arrowRight",
   fulltext: "search",
+  elsewhere: "globe",
 };
 
 export function SearchResultRow({

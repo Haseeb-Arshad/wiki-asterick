@@ -737,6 +737,19 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
             />
           </div>
         </div>
+
+        {article.notice === "preview" && (
+          // The page seems to stop where a paywall or sign-up wall begins; say so rather than leave the reader guessing.
+          <p className="reader-notice" role="note">
+            <Icon name="book" size={17} />
+            <span>
+              This looks like only the start of the article. The rest may need a subscription or a free account on {project}.{" "}
+              <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
+                Open the original
+              </a>
+            </span>
+          </p>
+        )}
       </header>
 
       {article.image && (

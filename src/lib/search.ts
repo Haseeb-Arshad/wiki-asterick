@@ -1,7 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
-import type { SearchHit } from "../../shared/types";
+import { elsewhereFor } from "../../shared/elsewhere";
+import type { SearchHit, SearchIntent } from "../../shared/types";
 import { parseWikiUrl } from "../../shared/wiki";
+import { api } from "./api";
 import { aiStatusQuery } from "./assistant";
 import { useSession } from "./auth";
 import { useDebouncedValue } from "./hooks";
@@ -11,15 +13,35 @@ import { searchQuery } from "./queries";
 
 export interface SearchOption {
   key: string;
-  kind: "article" | "url" | "link" | "ask" | "recent" | "action" | "fulltext";
+  kind: "article" | "url" | "link" | "ask" | "recent" | "action" | "fulltext" | "elsewhere";
   wiki: string;
   title: string;
   description: string;
   thumbnail: string | null;
   /** Web pages (kind "link", or a recent web page). */
   url?: string;
-  /** What to send to the AI when it differs from the title shown (kind "ask"). */
+  /** What to send to the AI when it differs from the title shown (kind "ask"), or what to look up (kind "elsewhere"). */
   query?: string;
+  /** Kind "elsewhere": open `query` as a page in `wiki`, or search `wiki` for it. */
+  open?: "article" | "search";
+}
+
+/**
+ * What a search is for (an article, an answer, a definition, travel, quotes) and its language,
+ * read by the server's decision model once typing pauses. Null while unknown or when the
+ * server has no decision model.
+ */
+function useSearchIntent(query: string, enabled: boolean): SearchIntent | null {
+  const settled = useDebouncedValue(query, 450);
+  const intent = useQuery({
+    queryKey: ["intent", settled.toLowerCase()],
+    queryFn: ({ signal }) => api<{ intent: SearchIntent | null }>(`/api/ai/intent?${new URLSearchParams({ q: settled })}`, { signal }),
+    enabled: enabled && settled.length >= 3,
+    staleTime: 60 * 60_000,
+    retry: false,
+  });
+  // Only an answer about what is typed now counts.
+  return settled === query ? (intent.data?.intent ?? null) : null;
 }
 
 const QUESTION = /^(what|why|how|who|whom|whose|when|where|which|is|are|was|were|can|could|does|do|did|should|would|will|explain|compare|summari[sz]e|tell me|help me|give me|list)\b/i;
@@ -86,6 +108,7 @@ export function useArticleSearch(query: string, wiki: string) {
   const ai = useQuery(aiStatusQuery);
   const { user } = useSession();
   const { snapshot } = useLibrary(user);
+  const intent = useSearchIntent(trimmed, ai.data?.decisions === true && !link);
 
   const results = useQuery({
     ...searchQuery(wiki, link ? "" : debounced),
@@ -152,6 +175,21 @@ export function useArticleSearch(query: string, wiki: string) {
       });
     }
     if (asking && !question) options.push(askOption);
+
+    // A better place to look, when the decision model reads the search as a definition, a trip,
+    // quotes, or a query in another language. Added last, so nothing moves under the pointer.
+    for (const place of elsewhereFor(intent, trimmed, wiki)) {
+      options.push({
+        key: `elsewhere:${place.wiki}:${place.query}`,
+        kind: "elsewhere",
+        wiki: place.wiki,
+        title: place.label,
+        description: place.description,
+        thumbnail: null,
+        query: place.query,
+        open: place.open,
+      });
+    }
   }
 
   return {

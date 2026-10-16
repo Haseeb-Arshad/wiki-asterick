@@ -56,5 +56,8 @@ export const config = {
   exaApiKey: process.env.EXA_API_KEY ?? "",
   aiQuickModel: process.env.AI_QUICK_MODEL ?? "anthropic/claude-haiku-5.5",
   aiDeepModel: process.env.AI_DEEP_MODEL ?? "openai/gpt-6-luna",
+  // A decision model (returns probabilities for fixed answers, writes no text) for routing,
+  // checking and sorting content. "off" turns these features off; they fall back to simple rules.
+  decisionModel: process.env.DECISION_MODEL ?? "microsoft/microsoft-decision-1",
   appUrl: process.env.APP_URL ?? "https://github.com/Haseeb-Arshad/wiki-asterick",
 };

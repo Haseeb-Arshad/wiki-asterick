@@ -1,3 +1,5 @@
+import { decisionsEnabled } from "../ai/decisions.js";
+import { refineWebArticle } from "./refine.js";
 import { Router, type Request } from "express";
 import type { WikiArticle } from "../../shared/types.js";
 import { parseWikiUrl } from "../../shared/wiki.js";
@@ -59,6 +61,8 @@ const webArticles = memoizeAsync(new TtlCache<Payload>(60, 30 * MINUTE), async (
     if (failure instanceof HttpError) throw failure;
     throw new HttpError(422, "Couldn't find an article on that page.", "no_article");
   }
+  // Clear the clutter that reader mode leaves at the edges of a page, and notice paywalled previews.
+  if (decisionsEnabled()) article = await refineWebArticle(article).catch(() => article!);
   return toPayload(article);
 });
 

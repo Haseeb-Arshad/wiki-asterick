@@ -141,6 +141,7 @@ function readNote(body: Record<string, unknown>): Omit<AiNote, "createdAt"> {
     model: readOptionalString(body.model, 120),
     mode: body.mode === "deep" ? "deep" : "quick",
     web: body.web === true,
+    grounded: typeof body.grounded === "number" && Number.isFinite(body.grounded) ? Math.min(1, Math.max(0, body.grounded)) : null,
   };
 }
 
@@ -197,6 +198,7 @@ interface NoteRow {
   model: string;
   mode: "quick" | "deep";
   web: number;
+  grounded: number | null;
   created_at: number;
 }
 
@@ -221,6 +223,7 @@ const toNote = (row: NoteRow): AiNote => ({
   model: row.model,
   mode: row.mode,
   web: Boolean(row.web),
+  grounded: row.grounded ?? null,
   createdAt: row.created_at,
 });
 
@@ -265,8 +268,8 @@ const listHistory = db.prepare(`SELECT * FROM history WHERE user_id = ? ORDER BY
 const listHighlights = db.prepare(`SELECT * FROM highlights WHERE user_id = ? ORDER BY created_at DESC`);
 const listNotes = db.prepare(`SELECT * FROM ai_notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 500`);
 const insertNote = db.prepare(`
-  INSERT INTO ai_notes (id, user_id, wiki, article_title, url, question, quote, quote_prefix, quote_suffix, section_id, answer, sources, model, mode, web, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO ai_notes (id, user_id, wiki, article_title, url, question, quote, quote_prefix, quote_suffix, section_id, answer, sources, model, mode, web, grounded, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (id) DO NOTHING
 `);
 const getNote = db.prepare(`SELECT * FROM ai_notes WHERE id = ? AND user_id = ?`);
@@ -340,6 +343,7 @@ function saveNote(userId: string, note: Omit<AiNote, "createdAt">, createdAt = D
     note.model,
     note.mode,
     note.web ? 1 : 0,
+    note.grounded ?? null,
     createdAt
   );
 }

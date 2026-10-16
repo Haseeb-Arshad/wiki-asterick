@@ -6189,6 +6189,54 @@ a.cite:hover {
   text-underline-offset: 4px;
 }
 
+/* A web page that shows only the start of its article. */
+.reader-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.reader-notice svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.reader-notice a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Whether an AI answer stays within its sources. */
+.grounded-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.grounded-badge.is-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.grounded-badge.is-warn {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
 /* The sentence being read aloud. */
 ::highlight(wa-speak) {
   background-color: color-mix(in srgb, var(--accent) 26%, transparent);
