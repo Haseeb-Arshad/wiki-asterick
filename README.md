@@ -8,9 +8,11 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 - Clean article layout: serif body text, sans-serif headings, reading time, last-edited date, and a progress bar.
 - Floating table of contents on wide screens; a contents sheet on phones.
 - Footnote popovers with links to the original sources, plus a searchable references panel.
-- Hover previews for linked articles (mouse only). Links open inside the app, not on Wikipedia.
+- Previews of linked articles: hover with a mouse, or press and hold on a touch screen. Links open inside the app, not on Wikipedia.
 - "At a glance" facts from the infobox, "Keep reading" recommendations, further-reading links.
-- Listen: the browser reads the article aloud from the section you're on.
+- **Reading settings** (the `Aa` button): text size, line width, serif or sans, spacing and a sepia paper. They apply to every article and web page and are remembered.
+- Listen: the browser reads the article aloud from the section you're on, one sentence at a time with the sentence highlighted. Speed (0.75× to 2×) can be changed while it plays, and you can pick a voice for each language.
+- Share a highlighted passage: the copied quote links to the article and opens on that passage, flashing it.
 - Download any article as Markdown (with attribution).
 - Keyboard shortcuts: `/` search, `j`/`k` sections, `s` save, `n` notes, `m` media, `r` references, `p` listen, `?` help.
 
@@ -28,6 +30,8 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 **Discovery**
 - Home page with today's featured article, trending articles with view sparklines, the picture of the day, news, and "on this day".
 - Instant search (`Ctrl/⌘ K`) with suggestions, full-text search with excerpts, and "Surprise me".
+- One box for reading, finding and asking: pages you saved or read recently that match show instantly, pasted links open in the reader, and "Ask AI" is the last row (the first for a question). Focusing the empty box lists where you left off.
+- Opening an article shows its real title, summary and lead image straight away while the full text loads.
 
 **Any article link**
 - Paste any article link (a blog post, newsletter, news story) into search and it opens in the same reader: clean typography, sections, images and video, highlights, saving and AI help.
@@ -39,14 +43,24 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 - While it works, a live card above the bar shows each step: reading the article, searching the web (with the sources popping in), a running summary of the model's thinking, then the answer as it's written.
 - The model and web search live in one compact menu in the bar. Auto uses Claude Haiku 5.5 for quick questions and GPT-6 Luna with high reasoning for "why / compare / analyze" questions. Web search runs automatically when no article is open or you ask about recent events, and can be forced on or off.
 - Every answer is saved as an **AI note** on the page it was asked from. On wide screens the answer opens in the left rail (Contents | AI notes); on phones, and on pages without an article, it opens in a left-hand panel. Notes show the question, the passage, the answer with numbered citations, and their sources, with Follow up, Copy and Delete.
-- Select a passage and press Ask to attach it to the bar, with one-tap prompts (Explain this, Say it more simply…). Passages you asked about get a dotted underline and a mark in the margin; click either to open the note.
+- Citations point at the section of the article that supports a claim, and clicking one jumps to that section. The section holding a passage you highlighted is always part of what the model reads.
+- Select a passage and press Ask to attach it to the bar, with one-tap prompts (Explain this, Say it more simply, Why does it matter?, Is this accurate?). Each is spelled out for the model; the note keeps the short label. Passages you asked about get a dotted underline and a mark in the margin; click either to open the note.
+- With no passage selected, the bar offers questions drawn from the open article: a summary, one for each of its two fullest sections, and what's new.
 - When you come back to a page, its earlier questions and answers are sent along as context, so new answers build on what you already asked.
 - AI notes sync with your account (or stay in the browser as a guest) and are collected in Library → AI notes.
 
 **Your library**
 - Highlights in four colors with notes, repainted on the text whenever you return.
 - Saved articles and reading history with "continue where you left off".
+- Search across saved items, highlights, AI notes and history (ignores case and accents); sort saved items and history; the library opens on the first section that has something in it.
+- Export everything as Markdown to read, or JSON as a backup.
 - Works without an account (stored in the browser). Sign in to sync. Anything saved as a guest moves into the account.
+
+**Install and offline**
+- Install WikiAsterisk as an app from Chrome, Edge or Android (an "Install app" link appears in the footer when your browser offers it).
+- Saving an article also keeps its text and Wikimedia images on the device, so it opens without a connection; saved items show an "Offline" tag in the library. Unsaving removes the copy.
+- On Android, WikiAsterisk appears in the Share menu: share a link from any app and it opens in the reader.
+- Offline reading and installing need the production build; the service worker is not registered by `npm run dev`.
 
 ## Getting started
 
@@ -74,6 +88,14 @@ npm run typecheck
 npm run lint
 ```
 
+`npm run smoke` starts the production build on a spare port with a throwaway database and checks it in a real headless Chrome or Edge (sign up, the not-found page, installability, the service worker and more). It needs `npm run build` first and a browser it can find (set `CHROME_PATH` if it can't). Add `-- --live` to also read real Wikipedia articles.
+
+```bash
+npm run smoke
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, tests, the build and the smoke test on every push to `main` and every pull request.
+
 ## Production
 
 ```bash
@@ -84,7 +106,7 @@ npm run build
 npm start
 ```
 
-`npm start` serves the built client and the API from one process on `PORT`. Set `JWT_SECRET` (the server refuses to start without it) and keep the `data/` directory on persistent storage. The server sends a Content-Security-Policy, long-lived caching for hashed assets, and pre-compressed (Brotli/gzip) API responses.
+`npm start` serves the built client and the API from one process on `PORT`. Set `JWT_SECRET` (the server refuses to start without it) and keep the `data/` directory on persistent storage. The server sends a Content-Security-Policy, long-lived caching for hashed assets, and pre-compressed (Brotli/gzip) API responses. Every page is the same app, but the server fills an article's (or web page's) own title, description and image into the HTML, so links pasted into chat apps and social sites preview properly. Addresses that don't exist, missing built files and missing articles answer 404.
 
 ## Fonts
 
@@ -97,6 +119,8 @@ AI answers are optional. Add keys to `.env` (see `.env.example`) and restart the
 - `OPENROUTER_API_KEY` enables answers. Set a spending limit on the key in the OpenRouter dashboard.
 - `EXA_API_KEY` enables live web search, "Keep reading" for web pages, and reading pages that block direct fetching.
 - `AI_QUICK_MODEL` and `AI_DEEP_MODEL` choose the models (defaults: `anthropic/claude-haiku-5.5` and `openai/gpt-6-luna`).
+
+With Anthropic models the instructions and article sources are marked for the provider's prompt cache, so follow-up questions on the same article are cheaper and faster (the server log shows `cached=` token counts).
 
 Keys stay on the server; the browser only talks to `/api/ai`. Guests can ask 20 questions per 10 minutes and signed-in readers 60, so a public deployment can't run up the bill. Article text and web results are passed to the model as sources to quote, with an instruction to ignore any instructions inside them, and answers are rendered as plain Markdown (never raw HTML).
 
@@ -161,10 +185,14 @@ All routes are under `/api`. Writes require the header `x-wa-request: 1`.
 ## Project structure
 
 ```text
-shared/            Types and wiki URL helpers used by both server and client
+shared/            Types and pure helpers used by both server and client (wiki URLs, library search/sort/export, suggested questions)
+public/            Fonts, icons, the web app manifest and the service worker (sw.js)
+scripts/           The browser smoke test (npm run smoke) and its small DevTools driver
+.github/workflows/ CI
 server/
   index.ts         Starts the HTTP server
   app.ts           Express app: security headers, API routes, static hosting in production
+  meta.ts          Page titles, descriptions and images for link previews; which addresses exist
   config.ts        Environment configuration
   db.ts            SQLite (node:sqlite) and migrations
   http.ts          Errors, rate limiting, CSRF check, LRU cache
@@ -176,8 +204,8 @@ server/
 src/
   routes/          TanStack Router file routes
   components/      Pages and UI (reader/ holds the article reader)
-  lib/             API client, session, library sync, search, text anchoring
-tests/             node:test suites (parser, URL helpers, web extraction and link safety, AI routing, auth and library API)
+  lib/             API client, session, library sync, search, reading and listening settings, offline saving, text anchoring
+tests/             node:test suites (parser, URL helpers, web extraction and link safety, AI routing and prompts, page metadata, library tools, auth and library API)
 ```
 
 ## Attribution
