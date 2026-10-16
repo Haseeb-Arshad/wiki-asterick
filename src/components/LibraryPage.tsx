@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import type { AiNote, Bookmark, Highlight, HistoryEntry, LibrarySnapshot } from "../../shared/types";
 import { useSession } from "../lib/auth";
 import { formatDate, formatRelative, pluralize } from "../lib/format";
+import { useDocumentTitle } from "../lib/hooks";
 import { useLibrary } from "../lib/library";
 import { filterSnapshot, libraryToJson, libraryToMarkdown, sortBookmarks, sortHistory, type HistorySort, type SavedSort } from "../../shared/library-tools";
 import { refLink } from "../lib/links";
@@ -19,6 +20,7 @@ export function LibraryPage({ tab }: { tab?: LibraryTab }) {
   const { user } = useSession();
   const library = useLibrary(user);
   const navigate = useNavigate();
+  useDocumentTitle("Your library");
   const [query, setQuery] = useState("");
   const [savedSort, setSavedSort] = useState<SavedSort>("newest");
   const [historySort, setHistorySort] = useState<HistorySort>("recent");

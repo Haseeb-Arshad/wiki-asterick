@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { normalizeWikiHost, wikiSlug } from "../../shared/wiki";
+import { useDocumentTitle } from "../lib/hooks";
 import { articleLink } from "../lib/links";
 import { wikiStore } from "../lib/preferences";
 import { searchQuery } from "../lib/queries";
@@ -13,6 +14,7 @@ export function SearchPage({ q, wiki: wikiParam }: { q: string; wiki?: string })
   const wiki = (wikiParam && normalizeWikiHost(wikiParam)) || preferred;
   const results = useQuery(searchQuery(wiki, q, "full"));
   const navigate = useNavigate();
+  useDocumentTitle(q ? `Results for “${q}”` : "Search");
 
   return (
     <div className="container" style={{ maxWidth: 780 }}>

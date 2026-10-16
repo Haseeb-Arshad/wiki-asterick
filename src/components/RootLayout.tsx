@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { onSessionEnded } from "../lib/api";
 import { sessionQuery, useSession } from "../lib/auth";
-import { useHotkeys } from "../lib/hooks";
+import { useDocumentTitle, useHotkeys } from "../lib/hooks";
 import { useGuestLibrarySync } from "../lib/library";
 import { articleLink } from "../lib/links";
 import { useApplyTheme, wikiStore } from "../lib/preferences";
@@ -121,6 +121,7 @@ function AppFooter() {
 }
 
 export function NotFound() {
+  useDocumentTitle("Page not found");
   return (
     <section className="message-page">
       <AsteriskMark size={48} />

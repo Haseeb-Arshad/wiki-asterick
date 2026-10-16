@@ -174,3 +174,17 @@ export function extractLink(text: string | null | undefined): string | null {
     return null;
   }
 }
+
+/**
+ * A passage cut down to fit in a shared link: whitespace collapsed, and anything over
+ * `max` characters ended at a whole word. The link still finds it, since the start of a
+ * passage is a quote of the passage.
+ */
+export function clipQuote(text: string, max = 240): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  // Already ended on a whole word.
+  if (/\s/.test(flat[max])) return cut.trimEnd();
+  return (cut.includes(" ") ? cut.replace(/\s+\S*$/, "") : cut).trimEnd();
+}

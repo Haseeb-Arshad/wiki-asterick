@@ -1,5 +1,18 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+export const DEFAULT_TITLE = "WikiAsterisk — Wikipedia, without the clutter";
+
+/** Names the browser tab while a page is open ("Your library — WikiAsterisk"); restores the default after. */
+export function useDocumentTitle(title: string | null) {
+  useEffect(() => {
+    if (!title) return;
+    document.title = `${title} — WikiAsterisk`;
+    return () => {
+      document.title = DEFAULT_TITLE;
+    };
+  }, [title]);
+}
+
 export function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {

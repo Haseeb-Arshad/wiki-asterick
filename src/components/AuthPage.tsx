@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useAuthActions, useSession } from "../lib/auth";
 import { pluralize } from "../lib/format";
+import { useDocumentTitle } from "../lib/hooks";
 import { toast } from "../lib/toast";
 import { AsteriskMark } from "./AsteriskIcon";
 import { Icon } from "./Icon";
@@ -19,6 +20,7 @@ export function AuthPage({ mode, redirect }: { mode: "signin" | "signup"; redire
   const { signIn, signUp } = useAuthActions();
   const navigate = useNavigate();
   const isSignUp = mode === "signup";
+  useDocumentTitle(isSignUp ? "Create account" : "Sign in");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

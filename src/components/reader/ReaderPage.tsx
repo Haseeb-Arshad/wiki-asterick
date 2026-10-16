@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { pathToTitle, wikiLanguage, wikiProject, wikiSlug } from "../../../shared/wiki";
 import { ApiError } from "../../lib/api";
+import { useDocumentTitle } from "../../lib/hooks";
 import { articleLink, wikiFromParam } from "../../lib/links";
 import { readingStore, readingStyle } from "../../lib/reading";
 import { articleQuery, searchQuery, summaryQuery } from "../../lib/queries";
@@ -46,7 +47,7 @@ function ArticleLoader({ wiki, title }: { wiki: string; title: string }) {
   useEffect(() => {
     if (!article || article.title === title || article.wiki !== wiki) return;
     queryClient.setQueryData(articleQuery(wiki, article.title).queryKey, article);
-    navigate({ ...articleLink(wiki, article.title, window.location.hash.slice(1) || undefined), replace: true });
+    navigate({ ...articleLink(wiki, article.title, window.location.hash.slice(1) || undefined), search: true, replace: true });
   }, [article, navigate, queryClient, title, wiki]);
 
   if (query.isPending) return <ArticleSkeleton wiki={wiki} title={title} />;
@@ -63,6 +64,7 @@ export function ArticleSkeleton({ wiki, title }: { wiki?: string; title?: string
   const prefs = readingStore.use();
   const known = Boolean(wiki && title);
   const summary = useQuery({ ...summaryQuery(wiki ?? "", title ?? ""), enabled: known }).data;
+  useDocumentTitle(known ? (summary?.title ?? title ?? null) : null);
   const project = wiki ? (PROJECT_NAMES[wikiProject(wiki)] ?? "Wiki") : "";
   const lang = summary?.lang ?? (wiki ? wikiLanguage(wiki) : undefined);
   const dir = summary?.dir;
@@ -130,6 +132,7 @@ export function ArticleSkeleton({ wiki, title }: { wiki?: string; title?: string
 
 function ArticleError({ error, wiki, title, onRetry }: { error: Error; wiki: string; title: string; onRetry: () => void }) {
   const notFound = error instanceof ApiError && error.status === 404;
+  useDocumentTitle(notFound ? "Article not found" : "Couldn’t load article");
   const suggestions = useQuery({ ...searchQuery(wiki, title), enabled: notFound });
 
   if (!notFound) {

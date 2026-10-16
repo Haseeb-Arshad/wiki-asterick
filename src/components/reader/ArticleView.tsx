@@ -4,10 +4,10 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { createPortal } from "react-dom";
 import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
 import { suggestQuestions } from "../../../shared/suggestions";
-import { resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
+import { clipQuote, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
-import { useHotkeys, useMediaQuery } from "../../lib/hooks";
+import { useDocumentTitle, useHotkeys, useMediaQuery } from "../../lib/hooks";
 import { highlightsFor, notesFor, useLibrary } from "../../lib/library";
 import { absoluteArticleUrl, articleLink } from "../../lib/links";
 import { aiStatusQuery, attachQuote, revealNotes, setAssistantContext, setRailAvailable, setRailTab, setSuggestions, useAsk } from "../../lib/assistant";
@@ -145,13 +145,19 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     }
   }, []);
 
-  // ---- page title ---------------------------------------------------------------
+  // ---- page title and a shared passage -------------------------------------------------
+  useDocumentTitle(article.title);
+
+  // A link shared from a highlight carries the passage: find it, scroll to it and flash it.
+  const sharedQuote = useLocation({ select: (location) => (location.search as { quote?: string }).quote });
   useEffect(() => {
-    document.title = `${article.title} — WikiAsterisk`;
-    return () => {
-      document.title = "WikiAsterisk — Wikipedia, without the clutter";
-    };
-  }, [article.title]);
+    if (!sharedQuote) return;
+    const timer = window.setTimeout(() => {
+      // Jump straight there (no long glide down the page), so the flash happens where you land.
+      if (!revealQuote({ text: sharedQuote, prefix: "", suffix: "" }, "instant")) toast("That passage isn't in the article any more.");
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [sharedQuote]);
 
   // ---- scroll: progress bar, header state, active section ------------------------
   useEffect(() => {
@@ -368,7 +374,9 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
     };
   }, []);
 
-  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${shareUrl})`;
+  // A link to this article that opens on the passage.
+  const quoteUrl = (text: string) => `${shareUrl}${shareUrl.includes("?") ? "&" : "?"}quote=${encodeURIComponent(clipQuote(text))}`;
+  const quoteText = (text: string) => `“${text.trim()}”\n— ${article.title}, ${project} (${quoteUrl(text)})`;
 
   function createHighlight(color: HighlightColor, withNote = false) {
     const range = selection;
