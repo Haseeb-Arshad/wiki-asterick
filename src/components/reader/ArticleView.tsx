@@ -637,7 +637,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         <div className="article-kicker">
           <Icon name={isWeb ? "link" : "globe"} size={15} />
           <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
-            {isWeb ? `${project} · Open original` : `${project} · ${languageName(lang)}`}
+            {isWeb ? `${project} · ${article.format === "pdf" ? "PDF · Open the original" : "Open original"}` : `${project} · ${languageName(lang)}`}
           </a>
           {article.languages.length > 0 && (
             <>
@@ -667,6 +667,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
               <span>{formatReadingTime(article.readingMinutes)}</span>
               {article.lastEdited && <span>{isWeb ? formatDate(article.lastEdited) : `Updated ${formatDate(article.lastEdited)}`}</span>}
               {videoCount > 0 && <span>{pluralize(videoCount, "video")}</span>}
+              {article.pageCount ? <span>{pluralize(article.pageCount, "page")} in the PDF</span> : null}
             </span>
           </span>
         </div>

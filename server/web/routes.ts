@@ -1,4 +1,5 @@
 import { decisionsEnabled } from "../ai/decisions.js";
+import { buildPdfArticle } from "./pdf.js";
 import { refineWebArticle } from "./refine.js";
 import { Router, type Request } from "express";
 import type { WikiArticle } from "../../shared/types.js";
@@ -44,15 +45,21 @@ const webArticles = memoizeAsync(new TtlCache<Payload>(60, 30 * MINUTE), async (
 
   try {
     const page = await fetchPublicPage(url);
-    article = buildWebArticle({ html: page.body, url: page.url });
-    if (article && !article.image) {
+    if (page.pdf) {
+      // Papers and reports: read the PDF's own text. A scan with no text layer has nothing to read.
+      article = await buildPdfArticle(new Uint8Array(page.pdf), page.url);
+      if (!article) throw new HttpError(422, "This PDF is a scanned image with no text to read. Open the original to see it.", "pdf_no_text");
+    } else {
+      article = buildWebArticle({ html: page.body, url: page.url });
+    }
+    if (article && !article.image && !page.pdf) {
       // Keep the share image even when reader mode drops it.
       article.image = readMeta(page.body, page.url).image ? { src: readMeta(page.body, page.url).image!, width: 0, height: 0 } : null;
     }
   } catch (error) {
     failure = error;
     // Addresses we refuse to fetch must not be fetched by Exa either.
-    if (error instanceof HttpError && ["blocked_host", "bad_url", "not_found", "not_html"].includes(error.code ?? "")) throw error;
+    if (error instanceof HttpError && ["blocked_host", "bad_url", "not_found", "not_html", "pdf_no_text"].includes(error.code ?? "")) throw error;
   }
 
   // Sites that block bots, or pages reader mode can't parse: try Exa's crawl.

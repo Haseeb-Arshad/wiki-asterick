@@ -89,6 +89,10 @@ export interface WikiArticle {
   byline?: string;
   /** Web pages: "preview" when the page seems to show only the start of the article (a paywall or sign-up wall). */
   notice?: "preview";
+  /** "pdf" for a PDF read from the web (its original is a PDF file). */
+  format?: "pdf";
+  /** PDFs: the number of pages in the original. */
+  pageCount?: number;
 }
 
 export interface ArticleSummary {

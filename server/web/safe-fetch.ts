@@ -101,6 +101,15 @@ export interface FetchedPage {
   url: string;
   contentType: string;
   body: string;
+  /** Set (and `body` empty) when the address served a PDF. */
+  pdf?: Buffer;
+}
+
+/** PDFs (papers, reports) are bigger than web pages. */
+const MAX_PDF_BYTES = 30 * 1024 * 1024;
+
+function isPdf(contentType: string, url: URL): boolean {
+  return /application\/(x-)?pdf/i.test(contentType) || (/octet-stream/i.test(contentType) && /\.pdf$/i.test(url.pathname));
 }
 
 const USER_AGENT = "Mozilla/5.0 (compatible; WikiAsterisk/2.0; +https://github.com/Haseeb-Arshad/wiki-asterick)";
@@ -191,9 +200,14 @@ export async function fetchPublicPage(raw: string, { timeoutMs = 12_000, maxByte
     }
 
     const contentType = String(response.headers["content-type"] ?? "");
+    if (isPdf(contentType, url)) {
+      const pdf = await readBody(decoded(response), Math.max(maxBytes, MAX_PDF_BYTES));
+      if (pdf.subarray(0, 5).toString("latin1") !== "%PDF-") throw new HttpError(415, "That link says it's a PDF, but it isn't one.", "not_html");
+      return { url: url.toString(), contentType, body: "", pdf };
+    }
     if (contentType && !/html|xml/i.test(contentType)) {
       response.resume();
-      throw new HttpError(415, "That link isn't a web page (it might be a PDF or a file).", "not_html");
+      throw new HttpError(415, "That link isn't a web page or a PDF (it might be a download).", "not_html");
     }
 
     const buffer = await readBody(decoded(response), maxBytes);
