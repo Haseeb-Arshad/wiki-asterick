@@ -13,7 +13,7 @@ import { searchQuery } from "./queries";
 
 export interface SearchOption {
   key: string;
-  kind: "article" | "url" | "link" | "ask" | "recent" | "action" | "fulltext" | "elsewhere";
+  kind: "article" | "url" | "link" | "ask" | "recent" | "action" | "fulltext" | "elsewhere" | "research";
   wiki: string;
   title: string;
   description: string;
@@ -172,6 +172,19 @@ export function useArticleSearch(query: string, wiki: string) {
         title: hit.title,
         description: hit.description,
         thumbnail: hit.thumbnail,
+      });
+    }
+    // A topic of a few words ("CRISPR therapy for sickle cell") can be researched across papers,
+    // researchers, images and the web, not just looked up.
+    if (trimmed.split(/\s+/).length >= 2 && !question) {
+      options.push({
+        key: `research:${trimmed}`,
+        kind: "research",
+        wiki,
+        title: `Research “${trimmed}”`,
+        description: "Papers, leading researchers, images and articles, checked for relevance",
+        thumbnail: null,
+        query: trimmed,
       });
     }
     if (asking && !question) options.push(askOption);

@@ -55,6 +55,10 @@ export function SearchBox({
       navigate({ to: "/web", search: { url: option.url } });
       return;
     }
+    if (option.kind === "research" && option.query) {
+      navigate({ to: "/research", search: { q: option.query, wiki: wikiSlug(option.wiki) } });
+      return;
+    }
     if (option.kind === "elsewhere" && option.query) {
       if (option.open === "article") navigate(articleLink(option.wiki, option.query));
       else navigate({ to: "/search", search: { q: option.query, wiki: wikiSlug(option.wiki) } });

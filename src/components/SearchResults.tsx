@@ -11,6 +11,7 @@ const KIND_ICON: Record<SearchOption["kind"], IconName> = {
   action: "arrowRight",
   fulltext: "search",
   elsewhere: "globe",
+  research: "book",
 };
 
 export function SearchResultRow({

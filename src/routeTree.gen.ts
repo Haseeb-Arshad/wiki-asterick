@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from "./routes/index"
 import { Route as AccountRouteImport } from "./routes/account"
 import { Route as ArticleRouteImport } from "./routes/article"
 import { Route as LibraryRouteImport } from "./routes/library"
+import { Route as ResearchRouteImport } from "./routes/research"
 import { Route as SearchRouteImport } from "./routes/search"
 import { Route as ShareRouteImport } from "./routes/share"
 import { Route as SigninRouteImport } from "./routes/signin"
@@ -38,6 +39,11 @@ const ArticleRoute = ArticleRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: "/library",
   path: "/library",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResearchRoute = ResearchRouteImport.update({
+  id: "/research",
+  path: "/research",
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
+  "/research": typeof ResearchRoute
   "/search": typeof SearchRoute
   "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
+  "/research": typeof ResearchRoute
   "/search": typeof SearchRoute
   "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   "/account": typeof AccountRoute
   "/article": typeof ArticleRoute
   "/library": typeof LibraryRoute
+  "/research": typeof ResearchRoute
   "/search": typeof SearchRoute
   "/share": typeof ShareRoute
   "/signin": typeof SigninRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/article"
     | "/library"
+    | "/research"
     | "/search"
     | "/share"
     | "/signin"
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/article"
     | "/library"
+    | "/research"
     | "/search"
     | "/share"
     | "/signin"
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | "/account"
     | "/article"
     | "/library"
+    | "/research"
     | "/search"
     | "/share"
     | "/signin"
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   ArticleRoute: typeof ArticleRoute
   LibraryRoute: typeof LibraryRoute
+  ResearchRoute: typeof ResearchRoute
   SearchRoute: typeof SearchRoute
   ShareRoute: typeof ShareRoute
   SigninRoute: typeof SigninRoute
@@ -188,6 +201,13 @@ declare module "@tanstack/react-router" {
       path: "/library"
       fullPath: "/library"
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/research": {
+      id: "/research"
+      path: "/research"
+      fullPath: "/research"
+      preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/search": {
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   ArticleRoute: ArticleRoute,
   LibraryRoute: LibraryRoute,
+  ResearchRoute: ResearchRoute,
   SearchRoute: SearchRoute,
   ShareRoute: ShareRoute,
   SigninRoute: SigninRoute,

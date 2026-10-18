@@ -21,6 +21,11 @@ export function SearchPage({ q, wiki: wikiParam }: { q: string; wiki?: string })
       <header className="page-head">
         <h1 className="page-title">{q ? `Results for “${q}”` : "Search"}</h1>
         <p className="page-sub">Full-text search across {wiki}.</p>
+        {q && (
+          <Link to="/research" search={{ q, wiki: wikiSlug(wiki) }} className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>
+            <Icon name="book" size={16} /> Research this topic: papers, researchers, images
+          </Link>
+        )}
         <div className="search-page-field">
           <SearchBox
             key={`${wiki}:${q}`}
