@@ -9,6 +9,7 @@ import { config } from "../config.js";
 import { HttpError, TtlCache, asyncHandler, memoizeAsync, rateLimit } from "../http.js";
 import { readPayload, sendPayload, toPayload, type Payload } from "../payload.js";
 import { assemble, buildWebArticle, readMeta } from "./extract.js";
+import { isMarkdownText, markdownToHtml, withoutExaCard } from "./markdown.js";
 import { assertFetchableUrl, fetchPublicPage } from "./safe-fetch.js";
 
 const MINUTE = 60_000;
@@ -28,7 +29,7 @@ async function extractWithExa(url: string): Promise<WikiArticle | null> {
   if (!contents || contents.html.replace(/<[^>]+>/g, "").trim().length < 300) return null;
   return assemble({
     title: contents.title,
-    contentHtml: contents.html,
+    contentHtml: isMarkdownText(contents.html) ? markdownToHtml(withoutExaCard(contents.html, contents.title)) : contents.html,
     url,
     description: "",
     image: contents.image,
