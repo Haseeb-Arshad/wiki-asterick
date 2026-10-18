@@ -17,7 +17,7 @@ export interface PageMeta {
 
 const SITE = "WikiAsterisk";
 
-const APP_PATHS = new Set(["/", "/account", "/article", "/library", "/search", "/share", "/signin", "/signup", "/web"]);
+const APP_PATHS = new Set(["/", "/account", "/article", "/library", "/research", "/search", "/share", "/signin", "/signup", "/web"]);
 
 /** True for addresses the app has a page for; anything else answers 404 (and still shows the app's own "not found"). */
 export function isKnownPath(pathname: string): boolean {

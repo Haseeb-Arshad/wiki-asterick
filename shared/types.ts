@@ -251,3 +251,84 @@ export interface ApiError {
   error: string;
   code?: string;
 }
+
+// ---- research pages: a topic gathered from Wikipedia, papers, researchers, images and the web ----
+
+export interface ResearchPaper {
+  /** OpenAlex id, e.g. "W2963403868". */
+  id: string;
+  title: string;
+  year: number | null;
+  /** Journal, conference or repository. */
+  venue: string | null;
+  citedBy: number;
+  authors: string[];
+  abstract: string;
+  /** The paper's page (DOI or landing page). */
+  url: string;
+  /** An openly readable PDF, when there is one. */
+  pdfUrl: string | null;
+  openAccess: boolean;
+}
+
+export interface ResearchExpert {
+  id: string;
+  name: string;
+  institution: string | null;
+  /** Papers they have on this topic. */
+  worksOnTopic: number;
+  hIndex: number | null;
+  citedBy: number;
+  orcid: string | null;
+  /** Their most cited paper on this topic. */
+  topPaper: { title: string; year: number | null; url: string; pdfUrl: string | null } | null;
+  /** People they most often publish with on this topic. */
+  collaborators: string[];
+}
+
+export interface ResearchImage {
+  /** Display size (about 500 px wide). */
+  src: string;
+  width: number;
+  height: number;
+  title: string;
+  description: string;
+  credit: string;
+  license: string;
+  /** The file's page, with full size, licence and author. */
+  filePage: string;
+}
+
+export interface ResearchLink {
+  title: string;
+  url: string;
+  site: string;
+  description: string;
+  image: string | null;
+  publishedDate: string | null;
+  /** Discussions: votes and comments, and the discussion's own page. */
+  points?: number;
+  comments?: number;
+  threadUrl?: string;
+}
+
+export interface ResearchPage {
+  query: string;
+  wiki: string;
+  /** The Wikipedia article closest to the topic, when there is one. */
+  overview: { title: string; description: string; extract: string; image: string | null } | null;
+  /** Other Wikipedia articles on the topic. */
+  articles: { title: string; description: string; thumbnail: string | null }[];
+  papers: ResearchPaper[];
+  /** About how many papers the archives hold on the topic. */
+  paperCount: number;
+  experts: ResearchExpert[];
+  /** The research field the topic's papers belong to, as OpenAlex names it. */
+  field: string | null;
+  images: ResearchImage[];
+  web: ResearchLink[];
+  discussions: ResearchLink[];
+  /** "model" when the decision model checked every item for relevance; "none" when it couldn't. */
+  checked: "model" | "none";
+  generatedAt: string;
+}

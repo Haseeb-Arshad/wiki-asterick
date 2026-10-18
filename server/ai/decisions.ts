@@ -59,8 +59,17 @@ export interface DecideOptions {
   signal?: AbortSignal;
 }
 
+/** An image in the state. Jev takes only inline PNG or JPEG data with a short side of about 244 px or more. */
+export interface ImagePart {
+  type: "image_url";
+  image_url: { url: string };
+}
+
+/** What the model reads: text, or text and images in order. */
+export type State = string | (string | ImagePart)[];
+
 /** Ask the decision model. Rejects on any failure; callers decide what "no opinion" means. */
-export type Decide = <Q extends Record<string, Question>>(task: string, state: string, questions: Q, options?: DecideOptions) => Promise<Answers<Q>>;
+export type Decide = <Q extends Record<string, Question>>(task: string, state: State, questions: Q, options?: DecideOptions) => Promise<Answers<Q>>;
 
 /** True when there is a key and the decision model hasn't been switched off. */
 export function decisionsEnabled(): boolean {
@@ -82,7 +91,11 @@ export const decide: Decide = async (task, state, questions, { timeoutMs = 2500,
       "HTTP-Referer": config.appUrl,
       "X-Title": "WikiAsterisk",
     },
-    body: JSON.stringify({ model: config.decisionModel, state: state.slice(0, MAX_STATE_CHARS), questions }),
+    body: JSON.stringify({
+      model: config.decisionModel,
+      state: typeof state === "string" ? state.slice(0, MAX_STATE_CHARS) : state.map((part) => (typeof part === "string" ? part.slice(0, MAX_STATE_CHARS) : part)),
+      questions,
+    }),
     signal: signal ? AbortSignal.any([timeout, signal]) : timeout,
   });
   const body = (await response.json().catch(() => null)) as {
@@ -122,6 +135,36 @@ export async function decideEach(
       const state = [intro, ...chunk.map((item, index) => `[${index + 1}] ${item}`)].join("\n");
       const questions: Record<string, NoulQuestion> = {};
       chunk.forEach((_, index) => {
+        questions[`item_${index + 1}`] = { type: "noul", instructions: question.instructions(index + 1), criteria: question.criteria };
+      });
+      const answers = await ask(task, state, questions, options);
+      return chunk.map((_, index) => answers[`item_${index + 1}`].noul);
+    })
+  );
+  return results.flat();
+}
+
+/**
+ * One yes/no question asked about each of several images, which the model looks at (inline data
+ * URLs). Images go in requests of up to 8, in parallel. Returns the probability of "true" per image.
+ */
+export async function decideEachImage(
+  task: string,
+  intro: string,
+  images: { label: string; dataUrl: string }[],
+  question: { instructions: (n: number) => string; criteria: { true: string; false: string } },
+  { decide: ask = decide, ...options }: DecideOptions & { decide?: Decide } = {}
+): Promise<number[]> {
+  if (!images.length) return [];
+  const CHUNK = 8;
+  const chunks: (typeof images)[] = [];
+  for (let start = 0; start < images.length; start += CHUNK) chunks.push(images.slice(start, start + CHUNK));
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const state: (string | ImagePart)[] = [intro];
+      const questions: Record<string, NoulQuestion> = {};
+      chunk.forEach((image, index) => {
+        state.push(`[${index + 1}] ${image.label}`, { type: "image_url", image_url: { url: image.dataUrl } });
         questions[`item_${index + 1}`] = { type: "noul", instructions: question.instructions(index + 1), criteria: question.criteria };
       });
       const answers = await ask(task, state, questions, options);

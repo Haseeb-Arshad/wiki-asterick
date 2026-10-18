@@ -8,6 +8,7 @@ import { HttpError, errorHandler, requireCsrfHeader } from "./http.js";
 import { libraryRouter } from "./library.js";
 import { injectMeta, isKnownPath, pageMeta } from "./meta.js";
 import { aiRouter } from "./ai/routes.js";
+import { researchRouter } from "./research/routes.js";
 import { webRouter } from "./web/routes.js";
 import { wikiRouter } from "./wiki/routes.js";
 
@@ -53,6 +54,7 @@ export function createApp() {
   api.use("/wiki", wikiRouter);
   api.use("/web", webRouter);
   api.use("/ai", aiRouter);
+  api.use("/research", researchRouter);
   api.use((_req, _res, next) => next(new HttpError(404, "Not found.")));
 
   app.use("/api", api);
