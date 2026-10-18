@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { createPortal } from "react-dom";
 import type { AiNote, ArticleRef, Footnote, Highlight, HighlightColor, WikiArticle } from "../../../shared/types";
 import { suggestQuestions } from "../../../shared/suggestions";
-import { clipQuote, resizeThumb, wikiLanguage, wikiProject } from "../../../shared/wiki";
+import { clipQuote, resizeThumb, wikiLanguage, wikiProject, wikiSlug } from "../../../shared/wiki";
 import { useSession } from "../../lib/auth";
 import { formatDate, formatReadingTime, pluralize } from "../../lib/format";
 import { useDocumentTitle, useHotkeys, useMediaQuery } from "../../lib/hooks";
@@ -637,7 +637,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
         <div className="article-kicker">
           <Icon name={isWeb ? "link" : "globe"} size={15} />
           <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
-            {isWeb ? `${project} · Open original` : `${project} · ${languageName(lang)}`}
+            {isWeb ? `${project} · ${article.format === "pdf" ? "PDF · Open the original" : "Open original"}` : `${project} · ${languageName(lang)}`}
           </a>
           {article.languages.length > 0 && (
             <>
@@ -667,6 +667,7 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
               <span>{formatReadingTime(article.readingMinutes)}</span>
               {article.lastEdited && <span>{isWeb ? formatDate(article.lastEdited) : `Updated ${formatDate(article.lastEdited)}`}</span>}
               {videoCount > 0 && <span>{pluralize(videoCount, "video")}</span>}
+              {article.pageCount ? <span>{pluralize(article.pageCount, "page")} in the PDF</span> : null}
             </span>
           </span>
         </div>
@@ -732,11 +733,29 @@ export function ArticleView({ article, webUrl }: { article: WikiArticle; webUrl?
                   label: "Download as Markdown",
                   onClick: () => downloadText(`${article.title}.md`, articleToMarkdown(article, outline)),
                 },
+                !isWeb && {
+                  icon: "book",
+                  label: "Research this topic",
+                  onClick: () => navigate({ to: "/research", search: { q: article.title, wiki: wikiSlug(article.wiki) } }),
+                },
                 { icon: "keyboard", label: "Keyboard shortcuts", onClick: () => setPanel("shortcuts") },
               ]}
             />
           </div>
         </div>
+
+        {article.notice === "preview" && (
+          // The page seems to stop where a paywall or sign-up wall begins; say so rather than leave the reader guessing.
+          <p className="reader-notice" role="note">
+            <Icon name="book" size={17} />
+            <span>
+              This looks like only the start of the article. The rest may need a subscription or a free account on {project}.{" "}
+              <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer">
+                Open the original
+              </a>
+            </span>
+          </p>
+        )}
       </header>
 
       {article.image && (

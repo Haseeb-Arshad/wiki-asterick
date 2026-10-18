@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { dismissRun, modelLabel, retryRun, revealNotes, stopAsk, type AskRun, type RunStep } from "../../lib/assistant";
+import { dismissRun, groundedVerdict, modelLabel, retryRun, revealNotes, stopAsk, type AskRun, type RunStep } from "../../lib/assistant";
 import { Icon } from "../Icon";
 import { Markdown } from "../Markdown";
 
@@ -208,6 +208,7 @@ export function ThinkingCard({ run }: { run: AskRun }) {
             </button>
           </span>
         )}
+        {run.phase === "done" && <GroundedBadge grounded={run.grounded} />}
         {run.phase === "done" && (
           <span className="think-saved">
             <Icon name="check" size={14} /> Saved
@@ -215,6 +216,18 @@ export function ThinkingCard({ run }: { run: AskRun }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Whether the answer stays within its sources, when the checking model was sure either way. */
+export function GroundedBadge({ grounded }: { grounded: number | null | undefined }) {
+  const verdict = groundedVerdict(grounded);
+  if (!verdict) return null;
+  return (
+    <span className={`grounded-badge is-${verdict.tone}`} title={verdict.detail}>
+      <Icon name={verdict.tone === "ok" ? "check" : "quote"} size={13} />
+      {verdict.label}
+    </span>
   );
 }
 

@@ -87,6 +87,12 @@ export interface WikiArticle {
   /** Web pages: publication name and author. */
   site?: string;
   byline?: string;
+  /** Web pages: "preview" when the page seems to show only the start of the article (a paywall or sign-up wall). */
+  notice?: "preview";
+  /** "pdf" for a PDF read from the web (its original is a PDF file). */
+  format?: "pdf";
+  /** PDFs: the number of pages in the original. */
+  pageCount?: number;
 }
 
 export interface ArticleSummary {
@@ -220,7 +226,18 @@ export interface AiNote {
   model: string;
   mode: "quick" | "deep";
   web: boolean;
+  /** Probability (0 to 1) that every claim in the answer is supported by its sources; absent when not checked. */
+  grounded?: number | null;
   createdAt: number;
+}
+
+/** What a search is for, read by the decision model. */
+export interface SearchIntent {
+  intent: "article" | "question" | "definition" | "travel" | "quotes";
+  intentConfidence: number;
+  /** A language code ("en", "ur", ...) or null when it's none of the featured languages. */
+  language: string | null;
+  languageConfidence: number;
 }
 
 export interface LibrarySnapshot {
@@ -233,4 +250,85 @@ export interface LibrarySnapshot {
 export interface ApiError {
   error: string;
   code?: string;
+}
+
+// ---- research pages: a topic gathered from Wikipedia, papers, researchers, images and the web ----
+
+export interface ResearchPaper {
+  /** OpenAlex id, e.g. "W2963403868". */
+  id: string;
+  title: string;
+  year: number | null;
+  /** Journal, conference or repository. */
+  venue: string | null;
+  citedBy: number;
+  authors: string[];
+  abstract: string;
+  /** The paper's page (DOI or landing page). */
+  url: string;
+  /** An openly readable PDF, when there is one. */
+  pdfUrl: string | null;
+  openAccess: boolean;
+}
+
+export interface ResearchExpert {
+  id: string;
+  name: string;
+  institution: string | null;
+  /** Papers they have on this topic. */
+  worksOnTopic: number;
+  hIndex: number | null;
+  citedBy: number;
+  orcid: string | null;
+  /** Their most cited paper on this topic. */
+  topPaper: { title: string; year: number | null; url: string; pdfUrl: string | null } | null;
+  /** People they most often publish with on this topic. */
+  collaborators: string[];
+}
+
+export interface ResearchImage {
+  /** Display size (about 500 px wide). */
+  src: string;
+  width: number;
+  height: number;
+  title: string;
+  description: string;
+  credit: string;
+  license: string;
+  /** The file's page, with full size, licence and author. */
+  filePage: string;
+}
+
+export interface ResearchLink {
+  title: string;
+  url: string;
+  site: string;
+  description: string;
+  image: string | null;
+  publishedDate: string | null;
+  /** Discussions: votes and comments, and the discussion's own page. */
+  points?: number;
+  comments?: number;
+  threadUrl?: string;
+}
+
+export interface ResearchPage {
+  query: string;
+  wiki: string;
+  /** The Wikipedia article closest to the topic, when there is one. */
+  overview: { title: string; description: string; extract: string; image: string | null } | null;
+  /** Other Wikipedia articles on the topic. */
+  articles: { title: string; description: string; thumbnail: string | null }[];
+  papers: ResearchPaper[];
+  /** About how many papers the archives hold on the topic. */
+  paperCount: number;
+  experts: ResearchExpert[];
+  /** The research field the topic's papers belong to, as OpenAlex names it. */
+  field: string | null;
+  images: ResearchImage[];
+  web: ResearchLink[];
+  discussions: ResearchLink[];
+  /** "model" when the decision model checked every item for relevance; "none" when it couldn't. */
+  checked: "model" | "none";
+  generatedAt: string;
 }

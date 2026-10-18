@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { ArticleSummary, SearchHit, WikiArticle, WikiFeed } from "../../shared/types";
+import type { ArticleSummary, ResearchPage, SearchHit, WikiArticle, WikiFeed } from "../../shared/types";
 import { api } from "./api";
 
 const MINUTE = 60_000;
@@ -72,4 +72,14 @@ export const similarPagesQuery = (url: string) =>
     queryKey: ["similar", url],
     queryFn: ({ signal }) => api<SimilarPage[]>(`/api/web/similar?${params({ url })}`, { signal }),
     staleTime: 60 * MINUTE,
+  });
+
+/** A research page: papers, leading researchers, images and articles about a topic (slow the first time). */
+export const researchQuery = (q: string, wiki: string) =>
+  queryOptions({
+    queryKey: ["research", wiki, q.trim().toLowerCase()],
+    queryFn: ({ signal }) => api<ResearchPage>(`/api/research?${params({ q: q.trim(), wiki })}`, { signal }),
+    staleTime: 30 * MINUTE,
+    gcTime: 60 * MINUTE,
+    retry: false,
   });

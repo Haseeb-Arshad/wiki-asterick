@@ -1,3 +1,6 @@
+import { decisionsEnabled } from "../ai/decisions.js";
+import { buildPdfArticle } from "./pdf.js";
+import { refineWebArticle } from "./refine.js";
 import { Router, type Request } from "express";
 import type { WikiArticle } from "../../shared/types.js";
 import { parseWikiUrl } from "../../shared/wiki.js";
@@ -6,6 +9,7 @@ import { config } from "../config.js";
 import { HttpError, TtlCache, asyncHandler, memoizeAsync, rateLimit } from "../http.js";
 import { readPayload, sendPayload, toPayload, type Payload } from "../payload.js";
 import { assemble, buildWebArticle, readMeta } from "./extract.js";
+import { isMarkdownText, markdownToHtml, withoutExaCard } from "./markdown.js";
 import { assertFetchableUrl, fetchPublicPage } from "./safe-fetch.js";
 
 const MINUTE = 60_000;
@@ -25,7 +29,7 @@ async function extractWithExa(url: string): Promise<WikiArticle | null> {
   if (!contents || contents.html.replace(/<[^>]+>/g, "").trim().length < 300) return null;
   return assemble({
     title: contents.title,
-    contentHtml: contents.html,
+    contentHtml: isMarkdownText(contents.html) ? markdownToHtml(withoutExaCard(contents.html, contents.title)) : contents.html,
     url,
     description: "",
     image: contents.image,
@@ -42,15 +46,21 @@ const webArticles = memoizeAsync(new TtlCache<Payload>(60, 30 * MINUTE), async (
 
   try {
     const page = await fetchPublicPage(url);
-    article = buildWebArticle({ html: page.body, url: page.url });
-    if (article && !article.image) {
+    if (page.pdf) {
+      // Papers and reports: read the PDF's own text. A scan with no text layer has nothing to read.
+      article = await buildPdfArticle(new Uint8Array(page.pdf), page.url);
+      if (!article) throw new HttpError(422, "This PDF is a scanned image with no text to read. Open the original to see it.", "pdf_no_text");
+    } else {
+      article = buildWebArticle({ html: page.body, url: page.url });
+    }
+    if (article && !article.image && !page.pdf) {
       // Keep the share image even when reader mode drops it.
       article.image = readMeta(page.body, page.url).image ? { src: readMeta(page.body, page.url).image!, width: 0, height: 0 } : null;
     }
   } catch (error) {
     failure = error;
     // Addresses we refuse to fetch must not be fetched by Exa either.
-    if (error instanceof HttpError && ["blocked_host", "bad_url", "not_found", "not_html"].includes(error.code ?? "")) throw error;
+    if (error instanceof HttpError && ["blocked_host", "bad_url", "not_found", "not_html", "pdf_no_text"].includes(error.code ?? "")) throw error;
   }
 
   // Sites that block bots, or pages reader mode can't parse: try Exa's crawl.
@@ -59,6 +69,8 @@ const webArticles = memoizeAsync(new TtlCache<Payload>(60, 30 * MINUTE), async (
     if (failure instanceof HttpError) throw failure;
     throw new HttpError(422, "Couldn't find an article on that page.", "no_article");
   }
+  // Clear the clutter that reader mode leaves at the edges of a page, and notice paywalled previews.
+  if (decisionsEnabled()) article = await refineWebArticle(article).catch(() => article!);
   return toPayload(article);
 });
 

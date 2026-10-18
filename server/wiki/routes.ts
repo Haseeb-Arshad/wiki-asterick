@@ -1,3 +1,5 @@
+import { decisionsEnabled } from "../ai/decisions.js";
+import { withoutExplicit } from "../ai/judgements.js";
 import { Router, type Request } from "express";
 import type { ArticleSummary, SearchHit, WikiArticle, WikiFeed } from "../../shared/types.js";
 import { normalizeWikiHost, parseWikiUrl, pathToTitle } from "../../shared/wiki.js";
@@ -106,6 +108,8 @@ const feeds = memoizeAsync(new TtlCache<Payload>(60, 30 * MINUTE), async (key) =
     if (!(error instanceof HttpError) || error.status !== 404) throw error;
     feed = await fetchFeed(wiki, new Date(day.getTime() - 24 * 60 * MINUTE));
   }
+  // Most-read lists often include explicit entries; a calm home page leaves them out.
+  if (decisionsEnabled()) feed = { ...feed, mostRead: await withoutExplicit(feed.mostRead) };
   return toPayload(feed);
 });
 

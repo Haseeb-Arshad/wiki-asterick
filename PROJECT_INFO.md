@@ -49,6 +49,32 @@ Highlights store the quoted text plus about 32 characters of context on each sid
 - Bump `VERSION` in `sw.js` only when the worker's own caching rules change.
 - The in-app preview browser cannot run service workers. Test with a production build in a real browser (`npm run smoke` does).
 
+## The decision model
+
+`server/ai/decisions.ts` calls OpenRouter's Decisions API (`POST /api/alpha/decisions`): a `state` (text) and named questions (`noul` yes/no, `choice`, `score`), answered with probabilities. `decideEach()` asks one yes/no question about many numbered items in a single request; measured as accurate as one request per item. Every use is in `server/ai/judgements.ts` or `server/web/refine.ts`, takes the decision function as a parameter (tests pass a fake one), and returns "no opinion" on failure, so the app behaves as before when the model is slow, off or out of credit.
+
+Thresholds come from live measurements, not round numbers: the reasoning model is used when P(careful analysis) ≥ 0.6 (analysis questions scored 0.81 to 0.99 with Jev and 0.86 to 1.00 with Microsoft; summaries and news round-ups at most 0.22 and 0.51); clutter is removed below 0.25; a paywalled preview needs 0.7. Re-measure them before switching models (`DECISION_MODEL`), since probabilities differ between models. Each call logs its time and cost as `[decide] …`.
+
+Jev also takes images (`decideEachImage()`, up to 8 per request), but only as base64 PNG or JPEG data URLs, and it rejects images whose short side is under about 244 px ("Invalid image dimensions"). Links to images are refused.
+
+## PDFs and Exa's text
+
+`safe-fetch.ts` recognises a PDF by its content type, its `.pdf` path or the `%PDF-` bytes, and allows up to 30 MB. `server/web/pdf.ts` reads the text layer with unpdf (PDF.js) and rebuilds the structure from the layout: headings are lines in larger type, numbered lines (`3.2 Results`) or known names (Abstract, Methods…); a run of large lines on one page is a notice, not headings; rotated text (arXiv's margin stamp) is skipped; a line repeated on at least three pages and 40% of them is a running head. The body stops at References. A PDF with no text layer answers 422 `pdf_no_text` and is not sent to Exa.
+
+When a site refuses the fetch, Exa's crawl is used instead. Exa answers PDFs and some pages in markdown, not HTML; `server/web/markdown.ts` converts it, and drops the summary card Exa puts before a paper (everything up to the second copy of the title heading).
+
+## Research pages
+
+`GET /api/research?q=` (`server/research/`) builds one page per topic and wiki, kept for six hours. `buildResearch()` runs each source as its own pipeline in parallel, so a slow or failing source only empties its own section:
+
+- **Articles**: Wikipedia search, a relevance check, then the summary of the best match as the overview.
+- **Papers**: OpenAlex works search (25), a relevance check on title and abstract, de-duplicated by normalised title.
+- **Leading researchers**: the model chooses the research field from the kept papers' OpenAlex topics (falling back to the topic that at least three papers share). OpenAlex then groups that topic's works by author; authors need an h-index of 10 or more, and each person's most cited paper must itself be in the field. "Often works with" lists up to three co-authors who appear on two or more of the person's top papers.
+- **Images**: Commons file search for the topic and the top article titles, run through `en.wikipedia.org`'s API (commons.wikimedia.org doesn't resolve on some networks). Only photos and diagrams in sensible proportions are kept; the model looks at each one, and images too small for it to judge are dropped.
+- **Web** (Exa) and **discussions** (Hacker News through Algolia), each with a relevance check.
+
+Thresholds, measured on live topics: kept when P(relevant) ≥ 0.5, images 0.35 (pictures of a topic rarely look "about" it as strongly as text does), discussions 0.6 (Hacker News titles are loose), and the field is used only when the model's choice has at least 0.5. The server logs how many images were kept; set `RESEARCH_DEBUG=1` to log each image's score as well. A page takes 5 to 11 seconds and costs under a cent of decision calls.
+
 ## Link previews and 404s
 
 Every route is the same `index.html`. In production `server/app.ts` fills in each article's (or web page's) title, description, image, canonical address and Twitter card (`server/meta.ts`), from the cached summary. A lookup failure must never stop the app loading, so it falls back to the plain page. `isKnownPath()` lists the app's routes: add a new route there, or its address will answer 404.
