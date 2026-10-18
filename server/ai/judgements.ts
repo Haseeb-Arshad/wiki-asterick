@@ -9,7 +9,7 @@ import { decide as defaultDecide, decideEach, type Decide } from "./decisions.js
 // ---- routing a question: which model, and whether to search the web ------------------------------
 
 /** How sure the model must be that a question needs careful analysis before using the reasoning model. */
-export const DEEP_ABOVE = 0.7;
+export const DEEP_ABOVE = 0.6;
 
 export interface AnswerPlan {
   mode: "quick" | "deep";
@@ -61,8 +61,9 @@ export async function planAnswer(
       { timeoutMs: 3000 }
     );
     // The reasoning model is slower and dearer: use it only when the model is sure it's needed.
-    // Measured: questions that need analysis score 0.86 to 1.00; summaries, explanations and news
-    // round-ups score 0.51 or less.
+    // Measured on the same 12 questions: questions that need analysis score 0.81 to 0.99 with Jev
+    // 1.14 (0.86 to 1.00 with Microsoft-Decision-1); summaries, explanations and news round-ups score
+    // 0.22 or less (0.51 or less). 0.6 sits clear of both groups for both models.
     const mode = modeFixed ? rules.mode : (answers.depth.probabilities["2"] ?? 0) >= DEEP_ABOVE ? "deep" : "quick";
     const web = webFixed ? rules.web : answers.fresh.noul >= 0.5;
     return { mode, web, by: "model" };

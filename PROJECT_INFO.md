@@ -53,7 +53,7 @@ Highlights store the quoted text plus about 32 characters of context on each sid
 
 `server/ai/decisions.ts` calls OpenRouter's Decisions API (`POST /api/alpha/decisions`): a `state` (text) and named questions (`noul` yes/no, `choice`, `score`), answered with probabilities. `decideEach()` asks one yes/no question about many numbered items in a single request; measured as accurate as one request per item. Every use is in `server/ai/judgements.ts` or `server/web/refine.ts`, takes the decision function as a parameter (tests pass a fake one), and returns "no opinion" on failure, so the app behaves as before when the model is slow, off or out of credit.
 
-Thresholds come from live measurements, not round numbers: the reasoning model is used when P(careful analysis) ≥ 0.7 (analysis questions scored 0.86 to 1.00, summaries and news round-ups at most 0.51); clutter is removed below 0.25; a paywalled preview needs 0.7. Re-measure them before switching models (`DECISION_MODEL`), since probabilities differ between models. Each call logs its time and cost as `[decide] …`.
+Thresholds come from live measurements, not round numbers: the reasoning model is used when P(careful analysis) ≥ 0.6 (analysis questions scored 0.81 to 0.99 with Jev and 0.86 to 1.00 with Microsoft; summaries and news round-ups at most 0.22 and 0.51); clutter is removed below 0.25; a paywalled preview needs 0.7. Re-measure them before switching models (`DECISION_MODEL`), since probabilities differ between models. Each call logs its time and cost as `[decide] …`.
 
 ## Link previews and 404s
 

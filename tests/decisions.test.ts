@@ -50,13 +50,14 @@ describe("planAnswer", () => {
   });
 
   test("keeps the reasoning model for questions it is sure need it", async () => {
-    // A news round-up scored about 0.5 in live tests; real analysis questions 0.86 and up.
+    // Live tests: news round-ups and summaries scored at most 0.51 (Microsoft) or 0.22 (Jev);
+    // real analysis questions 0.81 and up.
     for (const [p, mode] of [
-      [0.45, "quick"],
+      [0.22, "quick"],
       [0.51, "quick"],
-      [0.69, "quick"],
-      [0.7, "deep"],
-      [0.86, "deep"],
+      [0.59, "quick"],
+      [0.6, "deep"],
+      [0.81, "deep"],
     ] as const) {
       const { decide } = routing(p, 0);
       assert.equal((await planAnswer("A question", { ...base, decide })).mode, mode, `P=${p}`);
