@@ -36,7 +36,18 @@ A calm, modern reader for Wikipedia and its sister wikis. Search any article in 
 **Any article link**
 - Paste any article link (a blog post, newsletter, news story) into search and it opens in the same reader: clean typography, sections, images and video, highlights, saving and AI help.
 - Pages are extracted with Mozilla Readability; sites that block bots fall back to Exa's copy of the page.
+- PDFs open in the reader too: papers and reports are split into their sections from the type sizes and numbering, with running heads, page numbers and margin stamps removed and the body ending at the references. Scanned PDFs with no text layer say so and link to the original.
 - Links are fetched safely: private and internal network addresses are refused, every redirect is re-checked, and pages are size- and time-limited.
+
+**Research a topic**
+- Search offers "Research" for any topic of two or more words (also in quick search, on the full-text results page and in an article's More menu). The research page gathers, in about ten seconds:
+  - an overview from Wikipedia and the related articles;
+  - the most relevant papers from OpenAlex (which covers PubMed and arXiv), with abstracts and, for open-access papers, a link that opens the PDF in the reader;
+  - the field's leading researchers: h-index, papers in the field, most cited paper, who they most often work with, and ORCID;
+  - images from Wikimedia Commons with their credits and licences;
+  - articles from the web (Exa) and Hacker News discussions.
+- With a decision model set (see AI setup), every item is checked for relevance to the topic before it is shown, images are looked at rather than judged by file name, and the model names the research field the leading researchers are drawn from. Without one, the page still builds from each source's own ranking and says so. A page costs under a cent and is kept for six hours.
+- Humanities topics have thinner paper and researcher data than science and medicine, so those sections can be short or missing.
 
 **Ask AI**
 - A floating ask bar at the bottom of every page. Ask about the article you're reading, or anything at all, by typing or by voice (the mic uses the browser's speech recognition). It tucks into a small pill while you scroll down. Shortcut: `A`.
@@ -118,13 +129,15 @@ AI answers are optional. Add keys to `.env` (see `.env.example`) and restart the
 
 - `OPENROUTER_API_KEY` enables answers. Set a spending limit on the key in the OpenRouter dashboard.
 - `EXA_API_KEY` enables live web search, "Keep reading" for web pages, and reading pages that block direct fetching.
+- `OPENALEX_EMAIL` (optional) is sent to OpenAlex with research page requests, which puts them in its faster pool. OpenAlex needs no key.
 - `AI_QUICK_MODEL` and `AI_DEEP_MODEL` choose the models (defaults: `anthropic/claude-haiku-5.5` and `openai/gpt-6-luna`).
 - `DECISION_MODEL` (default `typesafe/jev-1.14`, same OpenRouter key) is a decision model: it writes no text, it returns probabilities for fixed answers in about a second, at about $0.04 per million input tokens. WikiAsterisk uses it to:
   - route each question to the quick or the reasoning model, and decide on web search, in any language (the English keyword rules are the fallback);
   - check every answer against its sources ("Checked against its sources" or "Some of this isn't in its sources" on the note);
   - tidy pages opened from shared links: clutter blocks at the edges (share buttons, sign-up prompts, credits) and junk images (logos, avatars, badges) are removed, and paywalled previews get a notice;
   - read a search's intent and language, and suggest Wiktionary for definitions, Wikivoyage for trips, Wikiquote for quotes, or the Wikipedia in the language you typed;
-  - keep sexually explicit entries off the home page's Trending list.
+  - keep sexually explicit entries off the home page's Trending list;
+  - build research pages: keep only papers, articles, images and discussions about the topic, and pick the research field.
 
   Each use falls back to the old behaviour if the model is slow or unavailable. Set `DECISION_MODEL=off` to turn them all off, or `microsoft/microsoft-decision-1` to use Microsoft's text-only model instead. Jev is the default because it can also look at images and reads up to 262K tokens; on the app's own tasks the two scored 75/78 and 74/78.
 
@@ -183,7 +196,8 @@ All routes are under `/api`. Writes require the header `x-wa-request: 1`.
 | POST / PATCH / DELETE | `/library/highlights[/:id]` | Highlights and notes |
 | POST / DELETE | `/library/notes[/:id]` | Save / delete an AI note (question, passage, answer, sources) |
 | POST | `/library/import` | Merge a guest library after sign-in |
-| GET | `/web/article?url=<link>` | Any article page, extracted into the reader format |
+| GET | `/web/article?url=<link>` | Any article page or PDF, extracted into the reader format |
+| GET | `/research?q=<topic>&wiki=en` | A research page: overview, papers, leading researchers, images, web articles and discussions |
 | GET | `/web/similar?url=<link>` | Similar pages (Exa) |
 | GET | `/ai/status` | Whether AI answers and web search are configured |
 | POST | `/ai/ask` | Streams an answer as newline-delimited JSON (`meta`, `step`, `sources`, `reasoning`, `delta`, `done`). Takes the page's earlier notes as `notes` for context |
@@ -207,13 +221,14 @@ server/
   auth/            Password hashing, JWT and refresh tokens, auth routes
   library.ts       Bookmarks, highlights, history, AI notes
   wiki/            Wikimedia API client, HTML parser/sanitizer, wiki routes
-  web/             Safe page fetcher (SSRF guard), reader-mode extraction, web routes
-  ai/              OpenRouter streaming, Exa search, article context, the /ai routes
+  web/             Safe page fetcher (SSRF guard), reader-mode extraction, PDF reading, web routes
+  research/        Research pages: OpenAlex, Commons, Exa and Hacker News sources, relevance checks, the /research route
+  ai/              OpenRouter streaming, Exa search, article context, the decision model, the /ai routes
 src/
   routes/          TanStack Router file routes
   components/      Pages and UI (reader/ holds the article reader)
   lib/             API client, session, library sync, search, reading and listening settings, offline saving, text anchoring
-tests/             node:test suites (parser, URL helpers, web extraction and link safety, AI routing and prompts, page metadata, library tools, auth and library API)
+tests/             node:test suites (parser, URL helpers, web extraction and link safety, PDF and markdown reading, AI routing and prompts, decision model, research pages, page metadata, library tools, auth and library API)
 ```
 
 ## Attribution
